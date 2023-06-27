@@ -36,18 +36,18 @@ polis_pops$source <- ifelse(polis_pops$vaccinetype == "nOPV2", "nOPV2", "Sabin2"
 
 unique(polis_pops$adm0_name)
 polis_pops$region <- Func_region(polis_pops$adm0_name)
-polis_pops %>% group_by(adm0_name) %>% summarize(region = unique(region)) %>%View()
+# polis_pops %>% group_by(adm0_name) %>% summarize(region = unique(region)) %>%View()
 
 # Clean data
 polis_pops <- polis_pops %>% filter(start_date < today())
 polis_pops %>% ungroup() %>% filter(vaccinetype == "nOPV2")  %>% summarize(pop= sum(target_pop, na.rm = T))
 
-polis_pops %>% ungroup() %>% filter(vaccinetype == "nOPV2") %>% 
-    group_by(adm0_name) %>% summarize(pop= sum(target_pop, na.rm = T)) %>% View()
+# polis_pops %>% ungroup() %>% filter(vaccinetype == "nOPV2") %>% 
+#     group_by(adm0_name) %>% summarize(pop= sum(target_pop, na.rm = T)) %>% View()
 
-polis_pops %>% ungroup() %>% filter(vaccinetype == "nOPV2") %>% 
-  filter(adm0_name == "NIGERIA") %>%
-  group_by(parentactivitycode, adm0_name, start_date) %>% summarize(date = unique(start_date),pop= sum(target_pop)) %>% View()
+# polis_pops %>% ungroup() %>% filter(vaccinetype == "nOPV2") %>% 
+#   filter(adm0_name == "NIGERIA") %>%
+#   group_by(parentactivitycode, adm0_name, start_date) %>% summarize(date = unique(start_date),pop= sum(target_pop)) %>% View()
   
 # Manually remove campaigns that didn't happen (yet)
 not_campaigns <- c("BFA-2022-002", "COD-2023-003", "NGA-2023-039")
@@ -67,8 +67,8 @@ polis_pops[polis_pops$adm0_name == "INDONESIA", "target_pop"] <- 11e6/indo_rows
 # Gut check nOPV2 usage
 polis_pops %>% filter(vaccinetype == "nOPV2") %>% summarize(pop = sum(target_pop, na.rm=T))
 polis_pops %>% filter(vaccinetype == "nOPV2", start_date < today() - 8*30) %>% summarize(pop = sum(target_pop, na.rm=T))
-polis_pops %>% filter(vaccinetype == "nOPV2", start_date < today()) %>%
-  group_by(adm0_name) %>%  summarize(pop = sum(target_pop, na.rm=T)/1e6) %>% View()
+# polis_pops %>% filter(vaccinetype == "nOPV2", start_date < today()) %>%
+#   group_by(adm0_name) %>%  summarize(pop = sum(target_pop, na.rm=T)/1e6) %>% View()
 
 polis_pops %>% filter(vaccinetype %in% c("mOPV2"), start_date < today() - 8*30) %>% summarize(pop = sum(target_pop, na.rm=T))
 polis_pops %>% filter(vaccinetype %in% c("tOPV"), start_date < today() - 8*30) %>% summarize(pop = sum(target_pop, na.rm=T))
@@ -76,7 +76,6 @@ polis_pops %>% filter(vaccinetype %in% c("mOPV2", "tOPV"), start_date < today() 
 
 # vaccine usage
 polis_pops %>% filter(region %in% c("AFRO", "EMRO", "EURO")) %>% group_by(source) %>% summarize(pop = sum(target_pop, na.rm=T))
-
 
 polis_pops %>% group_by(source, parentactivitycode) %>% 
   filter(region %in% c("AFRO", "EMRO", "EURO")) %>%
@@ -289,7 +288,7 @@ unique(data$adm0_name)
 data$Region <- sapply(data$adm0_name, Func_region)
 
 # See missingness
-data %>% filter(is.na(immunity_u5)) %>% View()
+# data %>% filter(is.na(immunity_u5)) %>% View()
 # missing immunity data from Indonesia, Phillipines, and Malaysia. Exclude from analysis
 
 
@@ -460,10 +459,10 @@ data_national %>%
 #p is the total population (not U-5)
 #q is the immunity in children under 5-years
 #alpha is the scaling factor for total number of observed emergences (see Supplemental section 4 in Gray 2022) 
-Func_u = function(p, q, alpha = 2.425*10^-6){ # alpha in march 2023 was 2.33*10^-6, 2.425*10^-6 in June 2023
+Func_u = function(p, q, alpha = 2.025*10^-6){ # alpha in march 2023 was 2.33*10^-6, 2.025*10^-6 in June 2023
   alpha * exp(-0.205*log(p) - 1.98*q) * p
 }
-alpha = 2.425*10^-6
+alpha = 2.025*10^-6
 
 # testing function
 Func_u(1e6, c(.05, .5, .95), alpha = 6.1*10^-6)
@@ -917,7 +916,7 @@ viruses %>% filter(source == "Sabin2", index_isolate == "TRUE", seeding_date > "
 sabin_emerge <- 74 # 74 post-switch Sabin-2 emergences in AFRO/EMRO/EURO.
 
 # Tune alpha to match the number of observed Sabin-2 emergences observed.
-alpha = 2.158*10^-6 
+alpha = 2.025*10^-6 
 
 data_province <- data_province %>% 
   mutate(U_mOPV2 = Func_u(p=population_total_sum,
@@ -990,10 +989,15 @@ ggplot() +
   theme(legend.position = c(0.85, 0.8)) +
   scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
 
-# Calculate cdf before defined dates (eg, March 1)
+# Calculate cdf before defined dates
 daily_U_conv %>% 
   filter(periods <= 2023.50) %>%
   # filter(periods > 2023.50) %>%
+  # filter(periods >= 2020, periods < 2021) %>%
+  # filter(periods >= 2021, periods < 2022) %>%
+  # filter(periods >= 2022, periods < 2023) %>%
+  # filter(periods >= 2023, periods < 2024) %>%
+  # filter(periods >= 2023, periods <= 2023.50) %>%
   group_by(source) %>%
   summarize(sum(U_mOPV2))
 
@@ -1075,7 +1079,7 @@ ggplot() +
   ggtitle("DRC Only") +
   scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
 
-# Calculate cdf before defined dates (eg, March 1)
+# Calculate cdf before defined dates
 daily_U_conv %>% 
   filter(periods <= 2023.50) %>%
   # filter(periods > 2023.50) %>%
@@ -1646,18 +1650,45 @@ viruses_ends <- viruses %>%
   filter(time_since_index <= 500) %>%
   group_by(vdpv_emergence_group_name) %>%
   arrange(desc(virus_date)) %>%
-  slice(n=1)
+  slice(1) %>%
+  ungroup()
+
+# Add a fake ES detection today for all active strains, so that the surveillance lag shows up
+active_groups <- viruses %>% filter(active == TRUE) %>%
+  select(vdpv_emergence_group_name) %>%
+  unique()
+active_groups <- active_groups$vdpv_emergence_group_name
+
+viruses_supplemented <- viruses
+
+for (i in active_groups){
+  example <- c(viruses_ends[viruses_ends$vdpv_emergence_group_name == i,])
+  viruses_supplemented <- rbind(viruses_supplemented, example)
+  viruses_supplemented[nrow(viruses_supplemented),]$epid <- "FAKE"
+  viruses_supplemented[nrow(viruses_supplemented),]$virus_date <- ymd(today())
+  viruses_supplemented[nrow(viruses_supplemented),]$surveillance_type_name <- "Environmental"
+}
+viruses_supplemented$time_since_index = viruses_supplemented$virus_date - viruses_supplemented$index_date
+
+# Calculate cumsum of AFP cases
+viruses_supplemented$AFP_count <- 0
+viruses_supplemented[viruses_supplemented$surveillance_type_name == "AFP", "AFP_count"] <- 1
+viruses_supplemented <- viruses_supplemented %>%
+  group_by(vdpv_emergence_group_name) %>%
+  arrange(virus_date) %>%
+  mutate(AFP_cumsum = cumsum(AFP_count)) %>%
+  ungroup()
 
 # Plot
 plot <- 
-viruses %>% filter(emergence_country %in% c("DEMOCRATIC REPUBLIC OF THE CONGO",
+  viruses_supplemented %>% filter(emergence_country %in% c("DEMOCRATIC REPUBLIC OF THE CONGO",
                                             "CENTRAL AFRICAN REPUBLIC",
                                             "NIGERIA")) %>%
   ggplot(aes(x = time_since_index, y = AFP_cumsum, 
                       group = vdpv_emergence_group_name, color = source,
                       alpha = active)) +
     geom_line(size = 1) +
-  geom_line(data = viruses %>%
+  geom_line(data = viruses_supplemented %>%
               filter(emergence_country %in% c("DEMOCRATIC REPUBLIC OF THE CONGO",
                                               "CENTRAL AFRICAN REPUBLIC",
                                               "NIGERIA")) %>%
