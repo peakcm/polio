@@ -172,7 +172,7 @@ viruses = viruses %>%
          dot_year_month = tolower(paste(year(virus_date), month(virus_date), sep = ":")))
 
 # Manually update new emergence groups
-kebbi_group <- "NIE-KBS-XXX"
+kebbi_group <- "NIE-KBS-1"
 kebbi_epids <- c("NIE-KBS-ARG-21-017", "NIE-KBS-KGW-21-022", "NIE-KBS-BGD-21-040", "NIE-KBS-GWN-21-015C3")
 kebbi_epids %in% viruses$epid
 viruses[viruses$epid %in% kebbi_epids, "vdpv_emergence_group_name"] <- kebbi_group
@@ -212,7 +212,7 @@ viruses <- viruses %>% mutate(seeding_date = virus_date - (vdpv_nt_changes_from_
 # Assign nOPV2-related viruses
 viruses$source = "Sabin2"
 sort(unique(viruses$vdpv_emergence_group_name))
-viruses[viruses$vdpv_emergence_group_name %in% c("RDC-SKV-1", "RDC-TAN-2", "RDC-KOR-1", "CAF-KEM-1", "NIE-KBS-XXX"), "source"] <- "nOPV2"
+viruses[viruses$vdpv_emergence_group_name %in% c("RDC-SKV-1", "RDC-TAN-2", "RDC-KOR-1", "CAF-KEM-1", "NIE-KBS-1"), "source"] <- "nOPV2"
 
 # Summary of emergences post-switch
 viruses %>% 
