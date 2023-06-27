@@ -274,6 +274,10 @@ immunity_u5_data$week <-  immunity_u5_data$year + (week(ymd(paste(immunity_u5_da
 
 immunity_u5_data <- immunity_u5_data %>% filter(period >= 2016, period < 2023.5)
 
+# Add admin1 and admin2 to immunity_u5_data
+immunity_u5_data <- immunity_u5_data %>% 
+  left_join(polis_pops %>% select(GUID, adm0_name, adm1_name, target_pop), by = "GUID")
+
 #### Combine SIA and immunity datasets ####
 # Join data on GUID, and period, noting that immunity from campaign doesn't impact that period yet
 data <- polis_pops %>% 
@@ -1619,7 +1623,13 @@ ggplot() +
 #### Spread of nOPV2 Emergences ####
 names(viruses)
 
-viruses$time_since_index = viruses$virus_date - viruses$index_date
+# Custom country groupings
+viruses$emergence_country <- NA
+for (group in viruses$vdpv_emergence_group_name){
+  emergence_country = viruses[viruses$vdpv_emergence_group_name %in% c(group) &
+                                viruses$index_isolate == TRUE, "admin0name"]
+  viruses[viruses$vdpv_emergence_group_name %in% c(group), "emergence_country"] <- emergence_country
+}
 
 # Identify active outbreaks
 viruses = viruses %>% 
@@ -1628,37 +1638,12 @@ viruses = viruses %>%
   mutate(most_recent = max(virus_date,na.rm=T),
          active = most_recent >= today()-months(6))
 
-# Calculate cumsum of AFP cases
-viruses$AFP_count <- 0
-viruses[viruses$surveillance_type_name == "AFP", "AFP_count"] <- 1
-viruses <- viruses %>%
-  group_by(vdpv_emergence_group_name) %>%
-  arrange(virus_date) %>%
-  mutate(AFP_cumsum = cumsum(AFP_count)) %>%
-  ungroup()
-
-# Custom country groupings
-viruses$emergence_country <- NA
-for (group in viruses$vdpv_emergence_group_name){
-  emergence_country = viruses[viruses$vdpv_emergence_group_name %in% c(group) &
-                              viruses$index_isolate == TRUE, "admin0name"]
-  viruses[viruses$vdpv_emergence_group_name %in% c(group), "emergence_country"] <- emergence_country
-}
-
-# Dataset for labeling ends
-viruses_ends <- viruses %>%
-  filter(time_since_index <= 500) %>%
-  group_by(vdpv_emergence_group_name) %>%
-  arrange(desc(virus_date)) %>%
-  slice(1) %>%
-  ungroup()
-
-# Add a fake ES detection today for all active strains, so that the surveillance lag shows up
 active_groups <- viruses %>% filter(active == TRUE) %>%
   select(vdpv_emergence_group_name) %>%
   unique()
 active_groups <- active_groups$vdpv_emergence_group_name
 
+# Add a fake ES detection today for all active strains, so that the surveillance lag shows up
 viruses_supplemented <- viruses
 
 for (i in active_groups){
@@ -1668,6 +1653,8 @@ for (i in active_groups){
   viruses_supplemented[nrow(viruses_supplemented),]$virus_date <- ymd(today())
   viruses_supplemented[nrow(viruses_supplemented),]$surveillance_type_name <- "Environmental"
 }
+
+# Calculate time
 viruses_supplemented$time_since_index = viruses_supplemented$virus_date - viruses_supplemented$index_date
 
 # Calculate cumsum of AFP cases
@@ -1679,6 +1666,17 @@ viruses_supplemented <- viruses_supplemented %>%
   mutate(AFP_cumsum = cumsum(AFP_count)) %>%
   ungroup()
 
+# Dataset for labeling ends
+viruses_ends <- viruses_supplemented %>%
+  filter(time_since_index <= 365) %>%
+  group_by(vdpv_emergence_group_name) %>%
+  arrange(desc(virus_date)) %>%
+  slice(1) %>%
+  ungroup()
+
+facet_names <- c('DEMOCRATIC REPUBLIC OF THE CONGO' = "DRC",
+                 'CENTRAL AFRICAN REPUBLIC' = "CAR",
+                 'NIGERIA' = "NIGERIA")
 # Plot
 plot <- 
   viruses_supplemented %>% filter(emergence_country %in% c("DEMOCRATIC REPUBLIC OF THE CONGO",
@@ -1698,17 +1696,17 @@ plot <-
             color = "black",
             linetype = "dotted",
             size = 1) +
-    scale_x_continuous(limits = c(0, 500), name = "Days Since Index Isolate") +
+    scale_x_continuous(limits = c(0, 365), name = "Days Since Index Isolate") +
     scale_y_log10(name = "Cumulative AFP Cases Reported") +
     theme_bw() +
     scale_alpha_discrete(range = c(0.3, 0.9)) +
     scale_color_discrete(labels = c("n-derived", "Sabin-derived"), name = "Source") +
-    facet_wrap(.~emergence_country) +
-    theme(legend.position = c(.2, .9))
+    facet_wrap(.~emergence_country, labeller = as_labeller(facet_names)) +
+    theme(legend.position = c(.2, .8))
 
 plot +
   geom_text_repel(aes(label = vdpv_emergence_group_name, color = source),
-                  show.legend=FALSE,
+                  show.legend=FALSE, fontface = "bold",
                   data = viruses_ends  %>% 
                     filter(source == "nOPV2") %>%
                     filter(emergence_country %in% c("DEMOCRATIC REPUBLIC OF THE CONGO",
@@ -1716,7 +1714,7 @@ plot +
                                                     "NIGERIA"))) +
   geom_text_repel(aes(label = vdpv_emergence_group_name, color = source),
     show.legend=FALSE,
-    data = viruses_ends  %>% 
+    data = viruses_ends  %>%
       filter(active == TRUE) %>%
       filter(source == "Sabin2") %>%
       filter(emergence_country %in% c("DEMOCRATIC REPUBLIC OF THE CONGO",
@@ -1730,12 +1728,12 @@ plot +
 viruses_final <- viruses %>%
   group_by(vdpv_emergence_group_name) %>%
   arrange(desc(AFP_cumsum)) %>%
-  slice(n=1) %>%
+  slice(1) %>%
   ungroup()
 
 viruses_final %>%
   group_by(AFP_cumsum >= 10, source) %>%
-  filter(active == FALSE) %>%
+  # filter(active == FALSE) %>%
   summarize(count = n())
 
 viruses_final %>%
@@ -1762,7 +1760,7 @@ viruses %>%
 names(immunity_u5_data)
 immunity_u5_data_temp <- immunity_u5_data %>% 
   group_by(adm0_name, adm1_name, period) %>%
-  summarize(immunity_u5_weighted = weighted.mean(immunity_u5, w = population_u5, na.rm=T))
+  summarize(immunity_u5_weighted = weighted.mean(immunity_u5, w = target_pop, na.rm=T))
 names(immunity_u5_data_temp)[c(1, 2, 3)] <- c("admin0name", "admin1name", "period_index")
 
 viruses <- viruses %>%
@@ -1772,7 +1770,7 @@ viruses <- viruses %>%
 
 viruses %>% 
   filter(AFP_cumsum == 10) %>%
-  filter(admin0name == "DEMOCRATIC REPUBLIC OF THE CONGO") %>%
+  # filter(admin0name == "DEMOCRATIC REPUBLIC OF THE CONGO") %>%
 ggplot(aes(x = immunity_u5_weighted, y = time_since_index_numeric)) +
   geom_smooth(method = "lm", color = "black") +
     geom_label(aes(color = source, label = vdpv_emergence_group_name), nudge_y = -10, alpha = 0.5) +
