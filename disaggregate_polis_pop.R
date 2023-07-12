@@ -1,5 +1,6 @@
 rm(list=ls())
 library(PolisAPI)
+library(tidyverse)
 library(httr)
 
 
@@ -47,7 +48,7 @@ data_tsir <- read_csv('C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundati
 pop_tsir <- data_tsir %>% filter(period == 2023) %>% distinct(guid, population)
 sia_polis_target_pop <- sia_polis %>% 
   group_by(childactivitycode = sia_sub_activity_code) %>% 
-  summarise(target_pop_total = sum(unique(calculated_target_population)), .groups = 'keep')
+  summarise(target_pop_total = sum(as.numeric(unique(calculated_target_population))), .groups = 'keep')
 
 sia <- left_join(sia_tsir, pop_tsir) %>% left_join(sia_polis_target_pop)
 sia <- sia %>% group_by(childactivitycode) %>%
