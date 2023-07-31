@@ -26,7 +26,7 @@ Func_region = function(ADM_0){
 #### Load Target Pops from disaggregate_polis_pop ####
 # Cross-check numbers against nOPV2 campaign tracker
 
-polis_pops <- readRDS("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/results/sia_polis_target_pop.rds")
+polis_pops <- readRDS("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/sia_polis_target_pop.rds")
 names(polis_pops)[13] <- "GUID"
 
 # Add fields
@@ -91,6 +91,7 @@ polis_pops %>% group_by(source, parentactivitycode) %>%
             max = max(sum))
 
 # Simplify fields
+polis_pops_full <- polis_pops
 polis_pops <- polis_pops %>% 
   filter(start_date > "2016-05-01") %>%
   select(adm0_name, adm1_name, adm2_name, parentactivitycode,  childactivitycode, 
@@ -100,63 +101,6 @@ polis_pops <- polis_pops %>%
 sias_figure <- polis_pops %>% group_by(quarter, source) %>% summarize(target_pop = sum(target_pop, na.rm=T))
 ggplot(sias_figure, aes(x = quarter, y = target_pop, color = source)) +  geom_line()
 
-# #### POLIS SIA data ####
-# token = readLines("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/data_local/token.txt")[1]
-# sias = get_polis_activities(token = token, min_date = "2016-05-01")
-# sias <- sias %>% filter(is.na(activity_parent_code) == FALSE,
-#                         activity_vaccine_type %in% c("nOPV2", "mOPV2", "tOPV"),
-#                         activity_date_from > 2016-05-01,
-#                         # activity_date_from < 2023-03-01,
-#                         activity_status == "Done")
-# sias$nb_doses <- as.numeric(sias$nb_doses)
-# 
-# sias$target_population <- as.numeric(sias$target_population)
-# sias <- sias %>% mutate(wastage_factor = nb_doses / target_population)
-# ggplot(sias, aes(x = wastage_factor, color = activity_vaccine_type)) + geom_density()
-# sias %>% group_by(activity_vaccine_type) %>% summarize(w.mean = weighted.mean(wastage_factor, nb_doses, na.rm=T))
-# 
-# # gut-check - Calculate doses given.
-# sias %>% filter(activity_vaccine_type == "nOPV2", activity_date_from < today()) %>% {sum(.$target_population)}
-# sias %>% filter(activity_vaccine_type == "nOPV2", activity_date_from < today()) %>% {sum(.$nb_doses)}
-# sias %>% filter(activity_vaccine_type == "nOPV2", activity_date_from < today()-8*30) %>% {sum(.$nb_doses)}
-# sias %>% filter(activity_vaccine_type == "nOPV2", activity_date_from < today()) %>% 
-#   group_by(admin0name) %>% summarize(doses = sum(nb_doses), pop = sum(target_population)) %>% View()
-# 
-# sias %>% filter(activity_vaccine_type == "mOPV2", activity_date_from < today()) %>% {sum(.$nb_doses, na.rm=T)}
-# sias %>% filter(activity_vaccine_type == "tOPV", activity_date_from < today()) %>% {sum(.$nb_doses, na.rm=T)}
-# sias %>% filter(activity_vaccine_type %in% c("mOPV2", "tOPV"), activity_date_from < today()) %>% {sum(.$target_population, na.rm=T)}
-# 
-# sias %>% filter(activity_vaccine_type == "nOPV2", activity_date_from < today()) %>% {sum(.$target_population)}
-# 
-# polis_pops %>% group_by(vaccinetype, parentactivitycode) %>% 
-#   summarize(sum = sum(target_pop, na.rm=T)) %>%
-#   ungroup() %>%
-#   group_by(vaccinetype) %>%
-#   summarize(count = n(),
-#             min = min(sum),
-#             q1 = quantile(sum, 0.25),
-#             median = median(sum),
-#             mean = mean(sum),
-#             q3 = quantile(sum, 0.75),
-#             max = max(sum))
-# 
-# # Create source variable
-# sias$source <- ifelse(sias$activity_vaccine_type == "nOPV2", "nOPV2", "Sabin2")
-# 
-# # Create week, period, quarter variables
-# sias$week <- year(sias$activity_date_from) + (week(sias$activity_date_from)-1)/52
-# sias$period <- year(sias$activity_date_from) + (month(sias$activity_date_from)-1)/12
-# sias$quarter <- year(sias$activity_date_from) + (quarter(sias$activity_date_from)-1)/4
-# 
-# sias_figure <- sias %>% group_by(quarter, source) %>% summarize(doses = sum(nb_doses))
-# ggplot(sias_figure, aes(x = quarter, y = doses, color = source)) +  geom_line()
-# 
-# # Countries with responses by year
-# sias %>% group_by(quarter, admin0name) %>% summarize(count = n()) %>%
-#   group_by(quarter) %>% summarize(count = n()) %>%
-#   ggplot(aes(x = quarter, y = count)) + geom_col() +
-#     ylab("Number of Countries with Type-2 SIA")
-# 
 #### POLIS Virus data ####
 token = readLines("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/data_local/token.txt")[1]
 viruses = get_polis_virus(token = token, min_date = "2016-05-01", virus_id = 4)
@@ -1786,3 +1730,89 @@ viruses %>%
   filter(admin0name == "DEMOCRATIC REPUBLIC OF THE CONGO") %>%
   select(time_since_index_numeric, immunity_u5_weighted) %>%
   ggpairs()
+
+# #### POLIS SIA data ####
+# set_token("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/data_local/token.txt")
+# sia_url2 <- "https://extranet.who.int/polis/api/v2/SubActivity?$filter=(DateFrom ge DateTime'2003-01-01') and (VaccineType eq 'mOPV2' or VaccineType eq 'tOPV' or VaccineType eq 'nOPV2' or VaccineType eq 'OPV2*')"
+# sias <- get_polis_url2(URLencode(sia_url2)) #find this function in "disaggregate_polis_pop.R"
+# 
+# sias <- sias %>% filter(vaccine_type %in% c("nOPV2", "mOPV2", "tOPV"),
+#                         date_from < today(),
+#                         status == "Done",
+#                         is.na(admin1name) == FALSE)
+# sias$source <- ifelse(sias$vaccine_type == "nOPV2", "nOPV2", "Sabin2")
+# 
+# # Create week, period, quarter variables
+# sias$week <- year(sias$date_from) + (week(sias$date_from)-1)/52
+# sias$period <- year(sias$date_from) + (month(sias$date_from)-1)/12
+# sias$quarter <- year(sias$date_from) + (quarter(sias$date_from)-1)/4
+
+#### Look into inter-campaign interval ####
+View(polis_pops_full)
+sias_provinces <- polis_pops_full %>%
+  group_by(adm0_name, adm1_name, start_date) %>%
+  summarize(adm0_name = unique(adm0_name),
+            adm1_name = unique(adm1_name),
+            start_date = unique(start_date),
+            vaccinetype = unique(vaccinetype),
+            target_pop_total = unique(target_pop_total),
+            region = unique(region),
+            source = unique(source))
+View(sias_provinces)
+
+# Calculate months since previous SIA
+sias_provinces$prev_sia <- as.Date("9999-01-01")
+sias_provinces <- sias_provinces %>% arrange(adm0_name, adm1_name, start_date)
+
+marker = 1
+for (i in 2:nrow(sias_provinces)){ #Manual, slow.
+  if (sias_provinces[i-1,"adm1_name"] == sias_provinces[i,"adm1_name"]){
+    sias_provinces[i,"prev_sia"] <- sias_provinces[i-1,"start_date"]
+  }
+}
+
+# Identify SIAs where there is more than 12 months since the previous. Call these "R1"
+sias_provinces[sias_provinces$prev_sia == "9999-01-01", "prev_sia"] <- NA
+sias_provinces$interval <- days(sias_provinces$start_date - sias_provinces$prev_sia)$day
+sias_provinces$round_1 <- sias_provinces$interval > 365
+
+# Identify the next SIA after an "R1"
+rows_round_1 <- which(sias_provinces$round_1 == TRUE)
+rows_round_1 <- rows_round_1[1:length(rows_round_1)-1] # remove the last row, since it can't have a second round
+sias_provinces$round_2 <- FALSE
+for (i in rows_round_1){ #Manual, kinda slow.
+  if (sias_provinces[i,"adm1_name"] == sias_provinces[i+1,"adm1_name"]){  # same province
+    if (sias_provinces[i+1, "round_1"] == FALSE){  # not a first round of its own
+        sias_provinces[i+1, "round_2"] <- TRUE
+    }
+  }
+}
+sias_provinces %>% filter(adm0_name == "NIGERIA", start_date > "2016-05-01") %>% View() 
+
+# priority countries
+sias_provinces$adm0_group <- "Others - non AFRO"
+sias_provinces[sias_provinces$region == "AFRO", "adm0_group"] <- "Others - AFRO"
+sias_provinces[sias_provinces$adm0_name == "DEMOCRATIC REPUBLIC OF THE CONGO", "adm0_group"] <- "DRC"
+sias_provinces[sias_provinces$adm0_name == "CENTRAL AFRICAN REPUBLIC", "adm0_group"] <- "CAR"
+sias_provinces[sias_provinces$adm0_name == "NIGERIA", "adm0_group"] <- "NIGERIA"
+sias_provinces[sias_provinces$adm0_name == "ETHIOPIA", "adm0_group"] <- "ETHIOPIA"
+
+# Plot distribution of interval to R2 over time and by geo and by vaccinetype
+sias_provinces %>% filter(round_2 == TRUE,
+                          start_date > "2016-05-01") %>%
+  ggplot(aes(x = start_date, y = interval/30, color = vaccinetype, shape = vaccinetype)) +
+    geom_hline(yintercept = 1, color = "darkgray") +
+    geom_smooth(method = "lm", se = FALSE) +
+    geom_jitter(size = 2, width = .25, height = .25) +
+    facet_wrap(adm0_group~.) +
+    ggtitle("Post-switch Type-2 response inter-campaign intervals") +
+    xlab("R2 Start Date") +
+    scale_y_continuous(name = "Months between R1 and R2", breaks = seq(1, 12, 2))
+
+sias_provinces %>% filter(round_2 == TRUE,
+                          start_date > "2016-05-01") %>%
+  group_by(adm0_group, vaccinetype) %>%
+  summarize(count = n(),
+            median = median(interval/30),
+            low = quantile(interval/30, .25),
+            high = quantile(interval/30, .75))
