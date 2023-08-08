@@ -1811,3 +1811,27 @@ sias_provinces %>%
     geom_jitter() +
     scale_x_continuous(name = "Months between R1 and R2")
   
+  #### Summary of emergence groups over time ####
+# Find order of vdpv emergence groups
+group_order <- viruses %>% 
+  group_by(vdpv_emergence_group_name) %>%
+  summarize(max_date = max(virus_date)) %>%
+  arrange(max_date) %>%
+  pull(vdpv_emergence_group_name) %>%
+  unique()
+
+plot <-
+viruses %>%
+  arrange(virus_date) %>%
+  filter(region_who_code == "AFRO") %>%
+  filter(surveillance_type_name %in% c("AFP", "Environmental")) %>%
+  ggplot(aes(x = virus_date, 
+    y = factor(vdpv_emergence_group_name, levels = rev(group_order)), 
+    color = surveillance_type_name)) + 
+  geom_point(shape = "o") +
+  theme_bw() +
+  theme(legend.position = "bottom") +
+  scale_x_date(date_breaks = "1 year", date_labels = "%Y", minor_breaks = waiver()) +
+  ylab("Emergence Group") +
+  xlab("Virus Date") 
+ggsave(filename = "C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio/figures/figure_emergence_groups_over_time.png", plot, width = 10, height = 7, units = "in", dpi = 300)
