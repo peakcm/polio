@@ -1731,21 +1731,6 @@ viruses %>%
   select(time_since_index_numeric, immunity_u5_weighted) %>%
   ggpairs()
 
-# #### POLIS SIA data ####
-# set_token("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/data_local/token.txt")
-# sia_url2 <- "https://extranet.who.int/polis/api/v2/SubActivity?$filter=(DateFrom ge DateTime'2003-01-01') and (VaccineType eq 'mOPV2' or VaccineType eq 'tOPV' or VaccineType eq 'nOPV2' or VaccineType eq 'OPV2*')"
-# sias <- get_polis_url2(URLencode(sia_url2)) #find this function in "disaggregate_polis_pop.R"
-# 
-# sias <- sias %>% filter(vaccine_type %in% c("nOPV2", "mOPV2", "tOPV"),
-#                         date_from < today(),
-#                         status == "Done",
-#                         is.na(admin1name) == FALSE)
-# sias$source <- ifelse(sias$vaccine_type == "nOPV2", "nOPV2", "Sabin2")
-# 
-# # Create week, period, quarter variables
-# sias$week <- year(sias$date_from) + (week(sias$date_from)-1)/52
-# sias$period <- year(sias$date_from) + (month(sias$date_from)-1)/12
-# sias$quarter <- year(sias$date_from) + (quarter(sias$date_from)-1)/4
 
 #### Look into inter-campaign interval ####
 View(polis_pops_full)
@@ -1764,7 +1749,6 @@ View(sias_provinces)
 sias_provinces$prev_sia <- as.Date("9999-01-01")
 sias_provinces <- sias_provinces %>% arrange(adm0_name, adm1_name, start_date)
 
-marker = 1
 for (i in 2:nrow(sias_provinces)){ #Manual, slow.
   if (sias_provinces[i-1,"adm1_name"] == sias_provinces[i,"adm1_name"]){
     sias_provinces[i,"prev_sia"] <- sias_provinces[i-1,"start_date"]
@@ -1800,7 +1784,7 @@ sias_provinces[sias_provinces$adm0_name == "ETHIOPIA", "adm0_group"] <- "ETHIOPI
 # Plot distribution of interval to R2 over time and by geo and by vaccinetype
 sias_provinces %>% filter(round_2 == TRUE,
                           start_date > "2016-05-01") %>%
-  ggplot(aes(x = start_date, y = interval/30, color = vaccinetype, shape = vaccinetype)) +
+  ggplot(aes(x = start_date, y = interval/30.4, color = vaccinetype, shape = vaccinetype)) +
     geom_hline(yintercept = 1, color = "darkgray") +
     geom_smooth(method = "lm", se = FALSE) +
     geom_jitter(size = 2, width = .25, height = .25) +
@@ -1813,6 +1797,17 @@ sias_provinces %>% filter(round_2 == TRUE,
                           start_date > "2016-05-01") %>%
   group_by(adm0_group, vaccinetype) %>%
   summarize(count = n(),
-            median = median(interval/30),
-            low = quantile(interval/30, .25),
-            high = quantile(interval/30, .75))
+            median = median(interval/30.4),
+            low = quantile(interval/30.4, .25),
+            high = quantile(interval/30.4, .75))
+
+# Figure for all campaigns
+sias_provinces$rand <- runif(nrow(sias_provinces), min = 0, max = 1)# add random noise
+sias_provinces %>%
+  # filter(adm0_name == "NIGERIA") %>%
+  filter(start_date > "2010-01-01") %>%
+  filter(round_2 == TRUE) %>%
+  ggplot(aes(x = interval/30.4, y = rand, color = vaccinetype, shape = vaccinetype)) +
+    geom_jitter() +
+    scale_x_continuous(name = "Months between R1 and R2")
+  
