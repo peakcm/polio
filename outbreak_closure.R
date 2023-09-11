@@ -1,7 +1,8 @@
-path_to_polis_data<-"~/polio-immunity-mapping/results"
-afp<-read.csv(paste0(path_to_polis_data,"/linelist_afp.csv"))
-es<-read.csv(paste0(path_to_polis_data,"/linelist_es.csv"))
-sia<-read.csv(paste0(path_to_polis_data,"/sia_district_rows.csv"))
+full <- "C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub"
+path_to_polis_data<-"/polio-immunity-mapping/results"
+afp<-read.csv(paste0(full, path_to_polis_data,"/linelist_afp.csv"))
+es<-read.csv(paste0(full, path_to_polis_data,"/linelist_es.csv"))
+sia<-read.csv(paste0(full, path_to_polis_data,"/sia_district_rows.csv"))
 afp$type<-"AFP"
 es$type<-"ES"
 library(tidyverse)
@@ -13,6 +14,8 @@ b<-virus[grepl(",",virus$vdpv_emergence_group),]
 b<-lapply(1:nrow(b),function(e){merge(b[e,which(names(b)!="vdpv_emergence_group")],cbind.data.frame(vdpv_emergence_group=strsplit(b$vdpv_emergence_group[e],", ")[[1]]))})
 b<-do.call("rbind",b)
 virus<-rbind(a,b)
+#data as of 9/11 missing "cVDPV2" in polio_virus_types for BOT-FRA-1
+virus[virus$vdpv_emergence_group == "BOT-FRA-1", "polio_virus_types"] <- "cVDPV2"
 virus<-filter(virus,!iso3_code%in%c("AFG","PAK"),grepl("cVDPV2",polio_virus_types),vdpv_emergence_group!="cVDPV2")
 
 virus<-virus[order(virus$date),]
@@ -56,4 +59,51 @@ ggsave("neo_epoch.png",width=10,height=8)
 
 d<-merge(sia_sub%>%filter(end<(Sys.Date()-12*30))%>%group_by(grp)%>%summarise(n=n()),df%>%filter(end<(Sys.Date()-12*30)),all=T)
 ggplot(data=d,aes(x=as.numeric((end+6*30)-start)/30,y=ifelse(is.na(n),0,n)))+geom_point(alpha=0.5)+geom_smooth(method="lm")+labs(x="Duration (months)",y="SIAs")
+
+# Statements for pull up point analysis
+df %>% View()
+df %>% filter(end > Sys.Date()-365) %>% View()
+
+# Number of lineage-country outbreaks active during each year
+df <- df %>%
+  mutate(
+    active_2016 = if_else(start <= "2017-01-01" & end >= "2016-01-01",TRUE, FALSE),
+    active_2017 = if_else(start <= "2018-01-01" & end >= "2017-01-01",TRUE, FALSE),
+    active_2018 = if_else(start <= "2019-01-01" & end >= "2018-01-01",TRUE, FALSE),
+    active_2019 = if_else(start <= "2020-01-01" & end >= "2019-01-01",TRUE, FALSE),
+    active_2020 = if_else(start <= "2021-01-01" & end >= "2020-01-01",TRUE, FALSE),
+    active_2021 = if_else(start <= "2022-01-01" & end >= "2021-01-01",TRUE, FALSE),
+    active_2022 = if_else(start <= "2023-01-01" & end >= "2022-01-01",TRUE, FALSE),
+    active_2023 = if_else(start <= "2024-01-01" & end >= "2023-01-01",TRUE, FALSE))
+
+# Duration of lineage-country outbreaks
+df$duration <- df$end - df$start
+df %>% filter(duration == 0) %>% View()
+median(df$duration)
+
+df %>% 
+  ungroup() %>%
+  # group_by(duration >0) %>%
+  # group_by(end > Sys.Date()-365) %>%
+  group_by(duration >0, end > Sys.Date()-365) %>%
+  summarize(
+    count = n(),
+    q1 = quantile(duration, 0.25),
+    mid = quantile(duration, 0.5),
+    q3 = quantile(duration, 0.75))
+
+# Number of SIAs in response to outbreaks
+  # Add a field for end date for that country-lineage outbreak
+sia_sub$end <- NA
+for (i in unique(sia_sub$grp)){
+  sia_sub[sia_sub$grp == i, "end"] <- df[df$grp == i, "end"]
+}
+
+sia_sub %>% 
+  filter(start_date <= end + 365) %>%
+  filter(start_date < "2023-09-01") %>%
+  group_by(vaccinetype) %>%
+  group_by(year(start_date)) %>%
+  summarize(
+    count = n())
 
