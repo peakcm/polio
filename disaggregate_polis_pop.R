@@ -55,7 +55,7 @@ sia <- sia %>% group_by(childactivitycode) %>%
   mutate(target_pop_frac = fraction*population/sum(population),
          target_pop = target_pop_frac* target_pop_total)
 
-#no tsir population data for philippines, indonesia, malaysia. Perhaps ignore?
+#no tsir population data for philippines, indonesia, malaysia. Instead, focus on AFRO/EMRO
 sia %>% ungroup %>% filter(start_date > ymd('2014-01-01'), str_detect(vaccinetype, 'tOPV|OPV2')) %>%
   filter(is.na(target_pop)) %>% group_by(childactivitycode, adm0_name, start_date) %>% tally() %>%
   arrange(desc(start_date))
