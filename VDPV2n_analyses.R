@@ -1586,6 +1586,12 @@ viruses %>%
 plot
 ggsave(filename = "C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio/figures/figure_emergence_groups_over_time.png", plot, width = 10, height = 7, units = "in", dpi = 300)
 
+# number of emergences
+viruses_supplemented %>% 
+  filter(index_isolate == TRUE) %>% 
+  filter(virus_date > "2016-05-01") %>%
+  filter(!(admin0name %in% c("AFGHANISTAN", "PAKISTAN"))) %>% View()
+
 # Plot by country
 viruses$vdpv_emergence_group_cluster <- "Other"
 viruses[viruses$vdpv_emergence_group_name == "NIE-JIS-1", "vdpv_emergence_group_cluster"] <- "NIE-JIS-1"
