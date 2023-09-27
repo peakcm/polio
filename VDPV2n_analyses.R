@@ -1,4 +1,5 @@
 # VDPV2-n analyses
+rm(list=ls())
 
 #### Load Libraries ####
 library(ggridges)
@@ -9,7 +10,7 @@ library(ggrepel)
 library(GGally)
 
 #### Load workspace ####
-load("VDPV2n_analyses.RData")
+# load("VDPV2n_analyses.RData")
 
 #### Helper functions ####
 #Create region from ADM_0
@@ -20,7 +21,7 @@ Func_region = function(ADM_0){
             "YEMEN","LEBANON", "LIBYA", "OCCUPIED PALESTINIAN TERRITORY, INCLUDING EAST JERUSALEM")
   WPRO <- c("PHILIPPINES", "MALAYSIA","LAO PEOPLE'S DEMOCRATIC REPUBLIC")
   SEARO <- c("INDONESIA", "MYANMAR", "INDIA", "NEPAL")
-  EURO <- c("TAJIKISTAN", "GEORGIA", "RUSSIAN FEDERATION")
+  EURO <- c("TAJIKISTAN", "GEORGIA", "RUSSIAN FEDERATION", "UKRAINE")
   ifelse(ADM_0 %in% EMRO, "EMRO",
          ifelse(ADM_0 %in% WPRO, "WPRO",
                 ifelse(ADM_0 %in% SEARO, "SEARO",
@@ -29,6 +30,7 @@ Func_region = function(ADM_0){
 }
 
 #### Load Target Pops from disaggregate_polis_pop ####
+# After dvc pull latest polio immunity mapping results, run disaggregate_polis_pop.R
 # Cross-check numbers against nOPV2 campaign tracker
 
 polis_pops <- readRDS("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/sia_polis_target_pop.rds")
@@ -39,21 +41,21 @@ polis_pops$period <- year(polis_pops$start_date) + (month(polis_pops$start_date)
 polis_pops$quarter <- year(polis_pops$start_date) + (quarter(polis_pops$start_date)-1)/4
 polis_pops$source <- ifelse(polis_pops$vaccinetype == "nOPV2", "nOPV2", "Sabin2")
 
-unique(polis_pops$adm0_name)
+# unique(polis_pops$adm0_name)
 polis_pops$region <- Func_region(polis_pops$adm0_name)
 polis_pops %>% group_by(adm0_name) %>% summarize(region = unique(region)) %>%View()
 
 # Clean data
 polis_pops <- polis_pops %>% filter(start_date < today())
-View(polis_pops %>% filter(vaccinetype == "nOPV2", status == "Planned"))
+# View(polis_pops %>% filter(vaccinetype == "nOPV2", status == "Planned"))
 
 # Mark campaigns that did happen:
-done_campaigns <- c("MLI-2023-002", "BDI-2023-002")
-polis_pops[polis_pops$parentactivitycode %in% done_campaigns, "status"] <- "Done"
+# done_campaigns <- c("MLI-2023-002", "BDI-2023-002")
+# polis_pops[polis_pops$parentactivitycode %in% done_campaigns, "status"] <- "Done"
 polis_pops <- polis_pops %>% filter(status == "Done")
 
 # Manually remove campaigns that didn't happen (yet)
-# not_campaigns <- c( "COD-2023-003")
+# not_campaigns <- c( "COD-2023-003") 
 # polis_pops %>% filter(parentactivitycode %in% not_campaigns) %>% View()
 # polis_pops[polis_pops$parentactivitycode %in% not_campaigns, "target_pop"] <- 0
 
@@ -69,17 +71,12 @@ polis_pops %>% ungroup() %>% filter(vaccinetype == "nOPV2")  %>% summarize(pop= 
 polis_pops %>% group_by(adm0_name) %>% 
   filter(vaccinetype == "nOPV2") %>%
   summarize(target_pop = sum(target_pop, na.rm=T)) %>% View()
-# Lacking in Indonesia. Too many in Nigeria (440349303 vs 397787446). Too few in Mali (4m vs 10m)
+# Lacking in Indonesia. Too many in Nigeria (440349303 vs 397787446)
 
 # !!!!!!! MANUAL !!!!!! Scale down Nigeria by 0.903 (397787446 / 440349303)
 polis_pops[polis_pops$adm0_name == "NIGERIA" & polis_pops$vaccinetype == "nOPV2", "target_pop"] %>% sum()
 polis_pops[polis_pops$adm0_name == "NIGERIA" & polis_pops$vaccinetype == "nOPV2", "target_pop"] <- 
   polis_pops[polis_pops$adm0_name == "NIGERIA" & polis_pops$vaccinetype == "nOPV2", "target_pop"] * 0.903
-
-# !!!!!! MANUAL !!!!!! Scale up Mali by 2.59 (10451060 / 4037925)
-polis_pops[polis_pops$adm0_name == "MALI" & polis_pops$vaccinetype == "nOPV2", "target_pop"] %>% sum()
-polis_pops[polis_pops$adm0_name == "MALI" & polis_pops$vaccinetype == "nOPV2", "target_pop"] <- 
-  polis_pops[polis_pops$adm0_name == "MALI" & polis_pops$vaccinetype == "nOPV2", "target_pop"] * 2.59
 
 # !!!!!!! MANUAL !!!!!! Distribute 12m to Indonesia equally across districts
 indo_rows <- polis_pops %>% filter(vaccinetype=="nOPV2", adm0_name == "INDONESIA") %>% nrow()
@@ -88,11 +85,13 @@ polis_pops[polis_pops$adm0_name == "INDONESIA" & polis_pops$vaccinetype=="nOPV2"
 # Gut check nOPV2 usage
 polis_pops %>% filter(vaccinetype == "nOPV2") %>% summarize(pop = sum(target_pop, na.rm=T))
 
-# vaccine usage
-polis_pops %>% filter(region %in% c("AFRO", "EMRO", "EURO")) %>% group_by(source) %>% summarize(pop = sum(target_pop, na.rm=T))
+# vaccine usage post-switch
+polis_pops %>% filter(region %in% c("AFRO", "EMRO", "EURO"), start_date > "2016-05-01") %>% group_by(source) %>%
+  summarize(pop = sum(target_pop, na.rm=T))
 
 polis_pops %>% group_by(source, parentactivitycode) %>% 
   filter(region %in% c("AFRO", "EMRO", "EURO")) %>%
+  filter(start_date > "2016-05-01") %>%
   summarize(sum = sum(target_pop, na.rm=T)) %>%
   ungroup() %>%
   group_by(source) %>%
@@ -124,13 +123,13 @@ viruses = viruses_raw %>%
          admin0name, country_iso3code, admin1name, admin1guid, admin2name, admin2guid, 
          virus_type_name, vdpv_classification_name, vdpv_emergence_group_name, 
          vdpv_nt_changes_from_sabin, surveillance_type_name, po_ns_seq_date) %>%
-  mutate(virus_date = ymd(virus_date),
+  mutate(virus_date = ymd(as.Date(virus_date)),
          id = as.numeric(id),
          dot_name = paste(admin0name, admin1name, sep = ":"),
          dot_year_month = tolower(paste(year(virus_date), month(virus_date), sep = ":")))
 
 # Check emergence group names
-novel_emergences <- c("RDC-SKV-1", "RDC-TAN-2", "RDC-KOR-1", "CAF-KEM-1", "NIE-KBS-1", "RDC-HKA-2","CAF-BNG-3")
+novel_emergences <- c("RDC-SKV-1", "RDC-TAN-2", "RDC-KOR-1", "CAF-KEM-1", "NIE-KBS-1", "RDC-HKA-2","CAF-BNG-3", "BOT-FRA-1", "EGY-NOR-1")
 novel_emergences %in% c(viruses$vdpv_emergence_group_name %>% unique())
 
 viruses %>% filter(vdpv_emergence_group_name %in% novel_emergences) %>% View()
@@ -156,7 +155,7 @@ for (i in unlist(repeats[,1])){
   viruses[viruses$vdpv_emergence_group_name %in% i & viruses$index_isolate == TRUE,"index_isolate"] <- c(TRUE, rep(FALSE, nrow(temp)-1)) #Arbitrarily set first to True
 }
 
-# Estimate date of seeding  9 changes per year +2 free
+# Estimate date of seeding 9 changes per year +2 free
 viruses$vdpv_nt_changes_from_sabin <- as.numeric(viruses$vdpv_nt_changes_from_sabin)
 viruses <- viruses %>% mutate(seeding_date = virus_date - (vdpv_nt_changes_from_sabin-2)/9 * 365.25)
 
@@ -167,11 +166,12 @@ viruses[viruses$vdpv_emergence_group_name %in% novel_emergences, "source"] <- "n
 
 # Summary of emergences post-switch
 viruses %>% 
-  filter(index_isolate == TRUE, seeding_date > "2016-04-01") %>% 
+  filter(index_isolate == TRUE, seeding_date > "2016-05-01") %>% 
   ungroup() %>% 
-  group_by(admin0name) %>%
+  group_by(admin0name, source) %>%
   summarize(count = n()) %>%
-  ggplot(aes(x = reorder(admin0name, -count), y = count)) +
+  ggplot(aes(x = reorder(admin0name, -count), y = count, fill = source)) +
+    # facet_grid(source~.) +
     geom_col() + coord_flip() + 
     xlab("") + ylab("Post-Switch cVDPV2 Emergences")
 
@@ -433,6 +433,7 @@ data_province_quarter <- data_province %>% group_by(quarter, source) %>%
             target_pop_sum = sum(target_pop_sum, na.rm=TRUE),
             immunity_weighted_summary = weighted.mean(immunity_weighted, population_total_sum, na.rm=TRUE)) %>%
   select(quarter, source, U_mOPV2_sum, immunity_weighted_summary, target_pop_sum)
+
 ##### note, immunity_weighted_summary is used above. Consider moving up
 sias_figure <- left_join(sias_figure, data_province_quarter %>% select("quarter", "source", "U_mOPV2_sum"), by = c("quarter", "source"))
 
@@ -450,7 +451,7 @@ ggplot(sias_figure, aes(x = quarter, fill = source, color = source)) +
 
 # Observed VDPV2 emergences
 ggplot(sias_figure, aes(x = quarter)) + 
-  geom_col(aes(y = emergences)) +
+  geom_col(aes(y = emergences, fill = source)) +
   ylab("VDPV2 Emergences") +
   theme_bw()
 
@@ -866,10 +867,11 @@ viruses %>% filter(source == "Sabin2", index_isolate == "TRUE", seeding_date > "
   filter(region_who_code %in% c("AFRO", "EMRO", "EURO")) %>% 
   # group_by(year(virus_date)) %>%
   summarize(count = n())
-sabin_emerge <- 75 # 75 post-switch Sabin-2 emergences in AFRO/EMRO/EURO.
+sabin_emerge <- 74 # 74 post-switch Sabin-2 emergences in AFRO/EMRO/EURO.
 
 # Tune alpha to match the number of observed Sabin-2 emergences observed.
-alpha = 2.15*10^-6 # Updated 8/17
+# alpha = 2.15*10^-6 # Updated 8/17
+alpha = 2.117*10^-6 # Updated 9/27
 
 data_province <- data_province %>% 
   mutate(U_mOPV2 = Func_u(p=population_total_sum,
@@ -930,9 +932,10 @@ for (i in 9:ncol(tt_conv_data)){
 
 # Plot points and lines for U_d
 ggplot() +
-  geom_vline(xintercept = 2023.667, size = 1) +
+  geom_vline(xintercept = 2023.750, size = 1) +
   geom_vline(xintercept = 2021.25, color = "red", alpha = 0.25, size = 1) +
   geom_line(data = daily_U_conv, aes(x = periods, y = U_mOPV2, color = source), size = 1) +
+  # geom_point(data = daily_U_conv, aes(x = periods, y = U_mOPV2, color = source), size = 1) +
   geom_point(data = viruses_count_period %>% filter(emergences > 0), aes(x = period, y = emergences, color = source, shape = source), size = 2) +
   theme_bw() +
   ylab("Expected cVDPV2 Emergences\n(Assuming Seeding at mOPV2 Rate)") +
@@ -945,8 +948,8 @@ ggplot() +
 # Calculate cdf before defined dates
 daily_U_conv %>% 
   # filter(periods <= 2023.583) %>%
-  filter(periods <= 2023.667) %>%
-  # filter(periods > 2023.667) %>%
+  filter(periods <= 2023.750) %>%
+  # filter(periods > 2023.750) %>%
   # filter(periods >= 2020, periods < 2021) %>%
   # filter(periods >= 2021, periods < 2022) %>%
   # filter(periods >= 2022, periods < 2023) %>%
@@ -1016,7 +1019,7 @@ for (i in 9:ncol(tt_conv_data)){
 
 # Plot points and lines for U_d
 ggplot() +
-  geom_vline(xintercept = 2023.667, size = 1) +
+  geom_vline(xintercept = 2023.750, size = 1) +
   # geom_vline(xintercept = 2021.667, color = "red", alpha = 0.25, size = 1) +
   geom_line(data = daily_U_conv, aes(x = periods, y = U_mOPV2, color = source), size = 1) +
   geom_point(data = viruses_count_period_DRC %>% filter(emergences > 0), aes(x = period, y = emergences, color = source, shape = source), size = 2) +
@@ -1031,8 +1034,8 @@ ggplot() +
 
 # Calculate cdf before defined dates
 daily_U_conv %>% 
-  filter(periods <= 2023.667) %>%
-  # filter(periods > 2023.667) %>%
+  filter(periods <= 2023.750) %>%
+  # filter(periods > 2023.750) %>%
   group_by(source) %>%
   summarize(sum(U_mOPV2))
 
@@ -1098,7 +1101,7 @@ for (i in 9:ncol(tt_conv_data)){
 
 # Plot points and lines for U_d
 ggplot() +
-  geom_vline(xintercept = 2023.667, size = 1) +
+  geom_vline(xintercept = 2023.750, size = 1) +
   # geom_vline(xintercept = 2021.25, color = "red", alpha = 0.25, size = 1) +
   geom_line(data = daily_U_conv, aes(x = periods, y = U_mOPV2, color = source), size = 1) +
   geom_point(data = viruses_count_period_DRC %>% filter(emergences > 0), aes(x = period, y = emergences, color = source, shape = source), size = 2) +
@@ -1113,8 +1116,8 @@ ggplot() +
 
 # Calculate cdf before defined dates (eg, March 1)
 daily_U_conv %>% 
-  filter(periods <= 2023.667) %>%
-  # filter(periods > 2023.667) %>%
+  filter(periods <= 2023.750) %>%
+  # filter(periods > 2023.750) %>%
   group_by(source) %>%
   summarize(sum(U_mOPV2))
 
@@ -1479,7 +1482,7 @@ viruses_supplemented %>%
 
 
 #### Look into inter-campaign interval ####
-View(polis_pops_full)
+# View(polis_pops_full)
 sias_provinces <- polis_pops_full %>%
   group_by(adm0_name, adm1_name, start_date) %>%
   summarize(adm0_name = unique(adm0_name),
@@ -1490,7 +1493,7 @@ sias_provinces <- polis_pops_full %>%
             region = unique(region),
             parentactivitycode = list(unique(parentactivitycode)),
             source = unique(source))
-View(sias_provinces)
+# View(sias_provinces)
 
 # Calculate months since previous SIA
 sias_provinces$prev_sia <- as.Date("9999-01-01")
