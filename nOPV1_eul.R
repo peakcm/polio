@@ -156,6 +156,15 @@ viruses_summary %>%
   ylab("Density") + xlab("Duration of Emergence Group (years)")
 ggsave("figures/histogram duration density.png", device = "png", units = "in", width = 5, height = 5)
 
+viruses_summary %>%
+  ggplot() +
+  geom_boxplot(aes(x = virus_type_group, fill = virus_type_group, y = duration/365)) +
+  ylab("Duration of Emergence Group (years)") +
+  xlab("") +
+  theme(legend.position = "none")
+ggsave("figures/boxplot duration.png", device = "png", units = "in", width = 5, height = 5)
+
+
 # Cases of emergence groups
 viruses_summary %>%
   ggplot(aes(x = cases, fill = virus_type_group)) +
@@ -175,6 +184,14 @@ viruses_summary %>%
   ylab("Density") + xlab("Cases in Emergence Group")
 ggsave("figures/histogram case density.png", device = "png", units = "in", width = 5, height = 5)
 
+viruses_summary %>%
+  ggplot(aes(y= cases, x = virus_type_group, fill = virus_type_group)) +
+  geom_boxplot() +
+  scale_y_log10() +
+  xlab("") + ylab("Cases in Emergence Group") +
+  theme(legend.position = "none")
+ggsave("figures/boxplot case count.png", device = "png", units = "in", width = 5, height = 5)
+
 # Days to 10 cases
 viruses_summary %>%
   ggplot(aes(x = (date_case_10 - index_date)/365, fill = virus_type_group)) +
@@ -190,6 +207,13 @@ viruses_summary %>%
   ylab("Density") + xlab("Years until 10 cases in Emergence Group")
 ggsave("figures/histogram days to 10 cases density.png", device = "png", units = "in", width = 5, height = 5)
 
+viruses_summary %>%
+  ggplot(aes(y = (date_case_10 - index_date)/365, x = virus_type_group, fill = virus_type_group)) +
+  geom_boxplot() +
+  xlab("") + ylab("Years until 10 cases in Emergence Group")+
+  theme(legend.position = "none")
+ggsave("figures/boxplot days to 10 cases count.png", device = "png", units = "in", width = 5, height = 5)
+
 # Growth trajectories
 ggplot(data = viruses %>% ungroup(),
        aes(x = time_since_index, y = AFP_cumsum, 
@@ -201,14 +225,27 @@ ggplot(data = viruses %>% ungroup(),
   # facet_grid(virus_type_group~.) +
   theme_bw() 
 ggsave("figures/growth trajectories.png", device = "png", units = "in", width = 5, height = 5)
-  
-ggplot(data = viruses %>% ungroup(),
-       aes(x = time_since_index, y = AFP_cumsum, 
-           group = vdpv_emergence_group_name, color = virus_type_group)) +
-  geom_line(size = 1) +
-  scale_x_continuous(limits = c(0, 365), name = "Days Since Index Isolate") +
-  scale_y_log10(name = "Cumulative AFP Cases Reported") +
-  scale_color_manual(values = c("red", "#99999950", "black")) +
-  # facet_grid(virus_type_group~.) +
-  theme_bw() 
-ggsave("figures/growth trajectories.png", device = "png", units = "in", width = 5, height = 5)
+
+temp <- viruses %>%
+  filter(vdpv_emergence_group_name %in% viruses_summary[viruses_summary$duration > 100,]$vdpv_emergence_group_name) %>% #lasted at least 100 days
+  filter(time_since_index <= 100) %>%
+  group_by(vdpv_emergence_group_name) %>%
+  summarize(cases_at_100 = max(AFP_cumsum),
+            virus_type_name = unique(virus_type_name))
+
+wilcox.test(temp$cases_at_100 ~ temp$virus_type_name,
+            exact = FALSE)
+
+ggplot(temp) +
+  geom_density(aes(x = cases_at_100, fill = virus_type_name), position = "dodge", alpha = 0.5) +
+  scale_x_continuous(name = "AFP Cases in Emergence Group at Day 100") +
+  ylab("Density")
+ggsave("figures/cases at 100 days.png", device = "png", units = "in", width = 5, height = 5)
+
+ggplot(temp) +
+  geom_boxplot(aes(y = cases_at_100, x = virus_type_name, fill = virus_type_name)) +
+  xlab("AFP Cases in Emergence Group at Day 100") +
+  ylab("") +
+  theme(legend.position = "none")
+ggsave("figures/boxplot cases at 100 days.png", device = "png", units = "in", width = 5, height = 5)
+
