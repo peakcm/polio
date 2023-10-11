@@ -8,6 +8,7 @@ library(lubridate)
 library(PolisAPI)
 library(ggrepel)
 library(GGally)
+library(ggh4x)
 
 #### Load workspace ####
 load("VDPV2n_analyses.RData")
@@ -155,6 +156,29 @@ polis_pops <- polis_pops %>%
 
 sias_figure <- polis_pops %>% group_by(quarter, source) %>% summarize(target_pop = sum(target_pop, na.rm=T))
 ggplot(sias_figure, aes(x = quarter, y = target_pop, color = source)) +  geom_line()
+
+# Plot number of doses
+polis_pops %>%
+  filter(!is.na(target_pop)) %>%
+  ungroup() %>%
+  group_by(source, period) %>%
+  reframe(period = unique(period),
+            doses = sum(target_pop)) %>%
+  group_by(source) %>%
+  arrange(period) %>%
+  reframe(period = unique(period),
+            doses_cumsum = cumsum(doses)) %>%
+  ggplot() +
+    geom_vline(xintercept = 2023.75, alpha = 0.25, size = 1) +
+    geom_vline(xintercept = 2021.167, alpha = 0.25, color = "red", size = 1) +
+    geom_line(aes(x = period, y = doses_cumsum/1e6, color = source), size = 1) +
+    theme_bw() +
+    scale_x_continuous(limits = c(2016.0, 2027), breaks = seq(2016, 2027, 2)) +
+    scale_y_continuous(name = "Cumulative Doses\n(Million)") +
+    scale_color_discrete(name = "Vaccine Type") +
+    force_panelsizes(rows = unit(2, "in"),
+                     cols = unit(5, "in"))
+ggsave("figures/Cumulative Doses.png", device = "png", units = "in", width = 7, height = 3)
 
 #### POLIS Virus data ####
 token = readLines("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/data_local/token.txt")[1]
@@ -1082,16 +1106,14 @@ ggplot() +
   geom_line(data = temp, aes(x = period, y = value, color = source, linetype = name), size = 1) +
   theme_bw() +
   ylab("Cumulative cVDPV2 Emergences") +
-  xlab("") +
+  scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
   scale_linetype_discrete(name = "Emergences",
-                          labels = c("Observed", "Expected based on\nmOPV2 Rate")) +
-  # scale_y_continuous(limits = c(0, 8)) +
-  # scale_shape_manual(values = c(19,1)) +
-  theme(legend.position = c(0.85, 0.2)) +
-  # scale_linetype_manual(values = c("Observed" = "solid", "Expected" = "dashed"),
-  #                       breaks = c("Observed", "Expected"),
-  #                       labels = c("Observed", "Expected based\non mOPV2 rate")) +
+                          labels = c("Observed", "Expected based\non mOPV2 Rate")) +
+  # theme(legend.position = c(0.85, 0.3)) +
+  force_panelsizes(rows = unit(4, "in"),
+                   cols = unit(5, "in")) +
   scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
+ggsave("figures/Cumulative Emergences.png", device = "png", units = "in", width = 7, height = 5)
 
 #### Repeat, but only for DRC ####
 polis_pops %>% filter(adm0_name == "DEMOCRATIC REPUBLIC OF THE CONGO") %>% group_by(source)%>% filter(start_date < today()) %>% summarize(sum = sum(target_pop))
