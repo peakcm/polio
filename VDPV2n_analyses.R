@@ -219,8 +219,8 @@ viruses %>%
 
 # Calculate period and quarter
 viruses$week <- year(viruses$virus_date) + (week(viruses$virus_date)-1)/52
-viruses$period <- year(viruses$virus_date) + (month(viruses$virus_date)-1)/12
-viruses$quarter <- year(viruses$virus_date) + (quarter(viruses$virus_date)-1)/4
+viruses$period <- round(year(viruses$virus_date) + (month(viruses$virus_date)-1)/12, 3)
+viruses$quarter <- round(year(viruses$virus_date) + (quarter(viruses$virus_date)-1)/4, 2)
 
 viruses_count_week <- viruses %>% 
   filter(seeding_date > "2016-04-01") %>%
@@ -1068,14 +1068,23 @@ viruses_count_period <- viruses_count_period %>%
 
 # Plot cumsum points and lines for U_d by period
 temp <- left_join(daily_U_conv, viruses_count_period, by = c("period", "source"))
+temp[is.na(temp$emergences), "emergences"] <- 0
+temp <- temp %>% ungroup() %>% group_by(source) %>% arrange(period) %>% mutate(emergences_cumsum = cumsum(emergences))
+temp[temp$period > 2023.75, c("emergences", "emergences_cumsum")] <- NA
+temp <- temp %>% 
+  select(c("period", "source", "U_mOPV2_cumsum", "emergences_cumsum")) %>%
+  pivot_longer(cols = !c("period", "source"))
+temp <- temp %>% filter(!(source %in%  c("Sabin2") & name %in% c("U_mOPV2_cumsum")))
+
 ggplot() +
   geom_vline(xintercept = 2023.750, alpha = 0.25, size = 1) +
   geom_vline(xintercept = 2021.25, color = "red", alpha = 0.25, size = 1) +
-  geom_line(data = daily_U_conv %>% filter(source == "nOPV2"), aes(x = period, y = U_mOPV2_cumsum, color = source), linetype = "dashed", size = 1) +
-  geom_line(data = viruses_count_period, aes(x = period, y = emergences_cumsum, color = source), linetype = "solid", size = 1) +
+  geom_line(data = temp, aes(x = period, y = value, color = source, linetype = name), size = 1) +
   theme_bw() +
   ylab("Cumulative cVDPV2 Emergences") +
-  xlab("Month") +
+  xlab("") +
+  scale_linetype_discrete(name = "Emergences",
+                          labels = c("Observed", "Expected based on\nmOPV2 Rate")) +
   # scale_y_continuous(limits = c(0, 8)) +
   # scale_shape_manual(values = c(19,1)) +
   theme(legend.position = c(0.85, 0.2)) +
