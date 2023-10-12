@@ -9,6 +9,7 @@ library(PolisAPI)
 library(ggrepel)
 library(GGally)
 library(ggh4x)
+library(patchwork)
 
 #### Load workspace ####
 load("VDPV2n_analyses.RData")
@@ -157,9 +158,11 @@ polis_pops <- polis_pops %>%
 sias_figure <- polis_pops %>% group_by(quarter, source) %>% summarize(target_pop = sum(target_pop, na.rm=T))
 ggplot(sias_figure, aes(x = quarter, y = target_pop, color = source)) +  geom_line()
 
-# Plot number of doses
-polis_pops %>%
+# Plot cumulative number of doses
+fig_cum_doses <- 
+  polis_pops %>%
   filter(!is.na(target_pop)) %>%
+  filter(region %in% c("AFRO")) %>%
   ungroup() %>%
   group_by(source, period) %>%
   reframe(period = unique(period),
@@ -173,12 +176,36 @@ polis_pops %>%
     geom_vline(xintercept = 2021.167, alpha = 0.25, color = "red", size = 1) +
     geom_line(aes(x = period, y = doses_cumsum/1e6, color = source), size = 1) +
     theme_bw() +
-    scale_x_continuous(limits = c(2016.0, 2027), breaks = seq(2016, 2027, 2)) +
-    scale_y_continuous(name = "Cumulative Doses\n(Million)") +
+    scale_x_continuous(limits = c(2016.0, 2027), breaks = seq(2016, 2027, 2), name = "") +
+    scale_y_continuous(name = "Cumulative Doses in\nthe African Region (Million)") +
     scale_color_discrete(name = "Vaccine Type") +
     force_panelsizes(rows = unit(2, "in"),
                      cols = unit(5, "in"))
-ggsave("figures/Cumulative Doses.png", device = "png", units = "in", width = 7, height = 3)
+ggsave(plot = fig_cum_doses, "figures/Cumulative Doses AFRO.png", device = "png", units = "in", width = 7, height = 3)
+
+# Plot annual number of doses
+polis_pops %>%
+  filter(!is.na(target_pop)) %>%
+  ungroup() %>%
+  # mutate(year = floor(period)) %>%
+  group_by(source, quarter) %>%
+  reframe(quarter = unique(quarter),
+          doses = sum(target_pop)) %>%
+  # group_by(source) %>%
+  # arrange(year) %>%
+  # reframe(year = unique(year),
+  #         doses_cumsum = cumsum(doses)) %>%
+  ggplot() +
+  geom_vline(xintercept = 2023.75, alpha = 0.25, size = 1) +
+  geom_vline(xintercept = 2021.167, alpha = 0.25, color = "red", size = 1) +
+  geom_line(aes(x = quarter, y = doses/1e6, color = source), size = 1) +
+  theme_bw() +
+  scale_x_continuous(limits = c(2016.0, 2027), breaks = seq(2016, 2027, 2), name = "") +
+  scale_y_continuous(name = "Quarterly Doses\n(Million)") +
+  scale_color_discrete(name = "Vaccine Type") +
+  force_panelsizes(rows = unit(2, "in"),
+                   cols = unit(5, "in"))
+ggsave("figures/Quarterly Doses.png", device = "png", units = "in", width = 7, height = 3)
 
 #### POLIS Virus data ####
 token = readLines("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/data_local/token.txt")[1]
@@ -257,6 +284,11 @@ viruses_count_period <- viruses %>%
   summarize(emergences = sum(index_isolate==TRUE))
 viruses_count_quarter <- viruses %>% 
   group_by(quarter, source) %>%
+  summarize(emergences = sum(index_isolate==TRUE))
+
+viruses_count_period_region <- viruses %>% 
+  filter(seeding_date > "2016-04-01") %>%
+  group_by(period, source, region_who_code) %>% 
   summarize(emergences = sum(index_isolate==TRUE))
 
 # Epi curve
@@ -1089,9 +1121,14 @@ viruses_count_period <- viruses_count_period %>%
   ungroup() %>% group_by(source) %>%
   arrange(period) %>%
   mutate(emergences_cumsum = cumsum(emergences))
+viruses_count_period_region <- viruses_count_period_region %>%
+  ungroup() %>% group_by(source, region_who_code) %>%
+  arrange(period) %>%
+  mutate(emergences_cumsum = cumsum(emergences))
 
 # Plot cumsum points and lines for U_d by period
-temp <- left_join(daily_U_conv, viruses_count_period, by = c("period", "source"))
+temp <- left_join(daily_U_conv, viruses_count_period_region %>%
+                    filter(region_who_code %in% c("AFRO")), by = c("period", "source"))
 temp[is.na(temp$emergences), "emergences"] <- 0
 temp <- temp %>% ungroup() %>% group_by(source) %>% arrange(period) %>% mutate(emergences_cumsum = cumsum(emergences))
 temp[temp$period > 2023.75, c("emergences", "emergences_cumsum")] <- NA
@@ -1100,20 +1137,25 @@ temp <- temp %>%
   pivot_longer(cols = !c("period", "source"))
 temp <- temp %>% filter(!(source %in%  c("Sabin2") & name %in% c("U_mOPV2_cumsum")))
 
-ggplot() +
-  geom_vline(xintercept = 2023.750, alpha = 0.25, size = 1) +
-  geom_vline(xintercept = 2021.25, color = "red", alpha = 0.25, size = 1) +
-  geom_line(data = temp, aes(x = period, y = value, color = source, linetype = name), size = 1) +
-  theme_bw() +
-  ylab("Cumulative cVDPV2 Emergences") +
-  scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
-  scale_linetype_discrete(name = "Emergences",
-                          labels = c("Observed", "Expected based\non mOPV2 Rate")) +
-  # theme(legend.position = c(0.85, 0.3)) +
-  force_panelsizes(rows = unit(4, "in"),
-                   cols = unit(5, "in")) +
-  scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
-ggsave("figures/Cumulative Emergences.png", device = "png", units = "in", width = 7, height = 5)
+fig_cum_emergences <- 
+  ggplot() +
+    geom_vline(xintercept = 2023.750, alpha = 0.25, size = 1) +
+    geom_vline(xintercept = 2021.25, color = "red", alpha = 0.25, size = 1) +
+    geom_line(data = temp, aes(x = period, y = value, color = source, linetype = name), size = 1) +
+    theme_bw() +
+    ylab("Cumulative cVDPV2 Emergences") +
+    scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
+    scale_linetype_discrete(name = "Emergences",
+                            labels = c("Observed", "Expected based\non mOPV2 Rate")) +
+    # theme(legend.position = c(0.85, 0.3)) +
+    force_panelsizes(rows = unit(4, "in"),
+                     cols = unit(5, "in")) +
+    scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
+ggsave(plot = fig_cum_emergences,"figures/Cumulative Emergences AFRO.png", device = "png", units = "in", width = 7, height = 5)
+
+# Combined figure
+plot_layout(fig_cum_doses / fig_cum_emergences)
+ggsave("figures/Cumulative AFRO.png", device = "png", units = "in", width = 7, height = 10)
 
 #### Repeat, but only for DRC ####
 polis_pops %>% filter(adm0_name == "DEMOCRATIC REPUBLIC OF THE CONGO") %>% group_by(source)%>% filter(start_date < today()) %>% summarize(sum = sum(target_pop))
