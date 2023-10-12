@@ -10,6 +10,7 @@ library(ggrepel)
 library(GGally)
 library(ggh4x)
 library(patchwork)
+library(ggbreak)
 
 #### Load workspace ####
 load("VDPV2n_analyses.RData")
@@ -546,7 +547,6 @@ ggsave(plot = sia_immunity_box, "figures/immunity.png", device = "png", units = 
 plot_layout(sia_target_box / sia_immunity_box)
 ggsave("figures/SIA target and immunity.png", device = "png", units = "in", width = 3, height = 6)
 
-
 #### Define which provinces have ES ####
 # make a list of provinces with an ES result within past year. Manually cross-checked with ES.world
 viruses_es = get_polis_virus(token = token, min_date = today()-365)
@@ -590,16 +590,53 @@ data_province %>%
             max = max(target_pop_sum))
 
 #### Compare locations of nOPV2 and Sabin2 use ####
-data_national %>%
-  filter(target_pop_sum > 0) %>%
+temp2 <- polis_pops %>%
+  filter(target_pop > 0) %>% # Note that philippines, malaysia perhaps others have missing population sizes
+  filter(period >= 2016.417) %>%
+  mutate(region_AFRO = if_else(region %in% c("AFRO"), "AFRO", "Other")) %>%
   group_by(adm0_name, source) %>%
-  summarize(target_pop_sum = sum(target_pop_sum, na.rm=T)) %>%
-  ggplot(aes(fill = source, x = sort(adm0_name), y = target_pop_sum)) +
-  geom_col(position = position_dodge2(preserve = "single")) +
-  coord_flip() +
-  xlab(element_blank()) +
-  ylab("Target U5 Population") +
-  scale_fill_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
+  summarize(target_pop = sum(target_pop, na.rm=T),
+            region = unique(region),
+            region_AFRO = unique(region_AFRO)) 
+
+ggplot(temp2, aes(fill = source, y = reorder(adm0_name, target_pop), x = target_pop/1e6)) +
+  geom_col(position = position_dodge2(preserve = "single"), orientation = "y") +
+  ylab(element_blank()) +
+  xlab("Target U5 Population (Million)") +
+  facet_grid(region_AFRO~., scales = "free") +
+  scale_fill_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type") +
+  theme_bw()
+
+# National dosage usage (for paper)
+ggplot(temp2, aes(color = source, y = reorder(adm0_name, target_pop_sum), x = target_pop_sum/1e6)) +
+  geom_point() +
+  ylab(element_blank()) +
+  scale_x_log10(name = "Target U5 Population (Million)", 
+                breaks = 10^(seq(0,7,1)),
+                minor_breaks = .5*10^(seq(0,7,1))) +
+  facet_grid(Region_AFRO~., scales = "free") +
+  scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type") +
+  theme_bw()
+ggsave("figures/doses by country.png", device = "png", units = "in", width = 6, height = 6)
+
+# Regional dosage usage (for paper table 1)
+polis_pops %>%
+  group_by(region) %>%
+  filter(target_pop > 0) %>%
+  filter(period >= 2016.417) %>%
+  group_by(region, source) %>%
+  summarize(target_pop = sum(target_pop, na.rm=T)) 
+
+View(polis_pops %>% filter(region %in% c("WPRO"), start_date > "2016-05-01"))
+
+polis_pops %>%
+  filter(adm0_name %in% c("NIGERIA", "DEMOCRATIC REPUBLIC OF THE CONGO",
+                          "PAKISTAN", "EGYPT")) %>%
+  group_by(adm0_name) %>%
+  filter(target_pop > 0) %>%
+  filter(period >= 2016.417) %>%
+  group_by(adm0_name, source) %>%
+  summarize(target_pop = sum(target_pop, na.rm=T)) 
 
 #### Function to calculate expected count of emergence from campaign ####
 #p is the total population (not U-5)
