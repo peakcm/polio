@@ -219,12 +219,12 @@ ggplot(data = viruses %>% ungroup(),
        aes(x = time_since_index, y = AFP_cumsum, 
            group = vdpv_emergence_group_name, color = virus_type_group)) +
   geom_line(size = 1) +
-  scale_x_continuous(limits = c(0, 365), name = "Days Since Index Isolate") +
+  scale_x_continuous(limits = c(0, 365), name = "Days Since Index Isolate\n(first year of circulation)") +
   scale_y_log10(name = "Cumulative AFP Cases Reported") +
-  scale_color_manual(values = c("red", "#99999950", "black")) +
+  scale_color_manual(values = c("red", "#99999950", "black"), name = "Emergence Category") +
   # facet_grid(virus_type_group~.) +
   theme_bw() 
-ggsave("figures/growth trajectories.png", device = "png", units = "in", width = 5, height = 5)
+ggsave("figures/growth trajectories.png", device = "png", units = "in", width = 7, height = 7)
 
 temp <- viruses %>%
   filter(vdpv_emergence_group_name %in% viruses_summary[viruses_summary$duration > 100,]$vdpv_emergence_group_name) %>% #lasted at least 100 days

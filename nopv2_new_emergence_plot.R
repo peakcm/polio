@@ -2,7 +2,7 @@ library(PolisAPI)
 library(lubridate)
 library(tidyverse)
 # Vector of emergence groups linked to nOPV2
-n<-c("RDC-TAN-2","RDC-KOR-1","RDC-SKV-1","CAF-KEM-1","NIE-KBS-1","CAF-BNG-3","RDC-HKA-2", "EGY-NOR-1")
+n<-c("RDC-TAN-2","RDC-KOR-1","RDC-SKV-1","CAF-KEM-1","NIE-KBS-1","CAF-BNG-3","RDC-HKA-2", "EGY-NOR-1", "BOT-FRA-1")
 
 set_token("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/data_local/token.txt")
 viruses_raw = get_polis_virus(min_date = '2014-01-01',virus_id = 4)
@@ -92,7 +92,7 @@ p<-ggplot()+geom_col(data=x,aes(x=half_year+365/4,y=n/1e6,fill=VaccineType))+
   geom_line(data=y,aes(x=half_year+365/4,y=12*y,color=vacc))+
   # geom_label(data=y,aes(x=half_year+365/4,y=12*(y+ifelse(half_year=="2023-01-01",ifelse(vacc=="nOPV2",-1,0.9),0.9)),label=y,color=vacc),size=2)+
   geom_label(data=y,aes(x=half_year+365/4,y=12*(y+0.9),label=y,color=vacc),size=2)+
-  labs(x="",y="Estimated doses (millions)",linetype="",fill="Doses",color="Linked to",caption="*Data as of 20 Jul 2023.")+
+  labs(x="",y="Estimated doses (millions)",linetype="",fill="Doses",color="Linked to",caption="*Data as of 15 Sept 2023.")+
   theme(legend.position=c(0.1,0.68))+scale_x_date(date_breaks="year",date_labels="%b %y")+
   scale_fill_manual(values=c("dark blue","orange","gray"))+scale_color_manual(values=c("blue","red"))+scale_linetype_manual(values=c(1,2))+
   scale_y_continuous(sec.axis=sec_axis(trans=~./12,name="New emergences (date of detection)"))
