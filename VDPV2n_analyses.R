@@ -120,7 +120,7 @@ polis_pops %>%
   group_by(vaccinetype, region) %>%
   summarize(pop = sum(target_pop, na.rm=T))
 
-# Compare campaign size by vaccine type
+# Compare campaign size by vaccine type (For paper)
 polis_pops %>% 
   group_by(source, parentactivitycode) %>% 
   # filter(region %in% c("AFRO", "EMRO", "EURO")) %>%
@@ -146,6 +146,22 @@ temp <-
 wilcox.test(temp$sum ~ temp$source,
             exact = FALSE)
 
+sia_target_box <- polis_pops %>% 
+  group_by(source, parentactivitycode) %>% 
+  # filter(region %in% c("AFRO", "EMRO", "EURO")) %>%
+  filter(region %in% c("AFRO")) %>%
+  filter(start_date > "2016-05-01") %>%
+  summarize(sum = sum(target_pop, na.rm=T)) %>%
+  ungroup() %>%
+  ggplot() +
+    geom_boxplot(aes(x = source, y = sum/1e6, color = source)) +
+    scale_y_log10(name = "SIA Target Population (Million)", 
+                  breaks = 10^(2-seq(1,5)),
+                  minor_breaks = .5*10^(2-seq(1,5))) +
+  xlab("") +
+  theme_bw() +
+  guides(color="none")
+ggsave(plot = sia_target_box, "figures/target pop.png", device = "png", units = "in", width = 3, height = 3)
 
 # Simplify fields
 polis_pops_full <- polis_pops
@@ -158,7 +174,7 @@ polis_pops <- polis_pops %>%
 sias_figure <- polis_pops %>% group_by(quarter, source) %>% summarize(target_pop = sum(target_pop, na.rm=T))
 ggplot(sias_figure, aes(x = quarter, y = target_pop, color = source)) +  geom_line()
 
-# Plot cumulative number of doses
+# Plot cumulative number of doses (For paper)
 fig_cum_doses <- 
   polis_pops %>%
   filter(!is.na(target_pop)) %>%
@@ -259,14 +275,17 @@ viruses[viruses$vdpv_emergence_group_name %in% novel_emergences, "source"] <- "n
 
 # Summary of emergences post-switch
 viruses %>% 
-  filter(index_isolate == TRUE, seeding_date > "2016-05-01") %>% 
+  filter(index_isolate == TRUE, seeding_date > "2016-05-01") %>%
+  mutate(region_who_code_AFRO = if_else(region_who_code %in% c("AFRO"), "AFRO", "Other")) %>%
   ungroup() %>% 
-  group_by(admin0name, source) %>%
+  group_by(admin0name, source, region_who_code_AFRO) %>%
   summarize(count = n()) %>%
   ggplot(aes(x = reorder(admin0name, -count), y = count, fill = source)) +
-    # facet_grid(source~.) +
-    geom_col() + coord_flip() + 
+    geom_col(position = position_dodge2(width = 0.9, preserve = "single")) + coord_flip() +
+    facet_grid(region_who_code_AFRO~., scales = "free_y") +
     xlab("") + ylab("Post-Switch cVDPV2 Emergences")
+  # Be sure to check for Egypt emergence
+ggsave("figures/emergences by country.png", device = "png", units = "in", width = 5, height = 7)
 
 # Calculate period and quarter
 viruses$week <- year(viruses$virus_date) + (week(viruses$virus_date)-1)/52
@@ -282,6 +301,7 @@ viruses_count_period <- viruses %>%
   filter(seeding_date > "2016-04-01") %>%
   group_by(period, source) %>% 
   summarize(emergences = sum(index_isolate==TRUE))
+
 viruses_count_quarter <- viruses %>% 
   group_by(quarter, source) %>%
   summarize(emergences = sum(index_isolate==TRUE))
@@ -345,10 +365,11 @@ data$Region <- sapply(data$adm0_name, Func_region)
 # Convert in province-level campaigns (sum across Admin2)
 # When the period and the admin1 name are the same, then sum the population and create a pop-weighted-immunity estimate for the province
 data_province <- data %>% group_by(adm1_name, period) %>%
-  summarize(target_pop_sum = sum(target_pop), 
+  reframe(target_pop_sum = sum(target_pop), 
             population_total_sum = sum(population_total),
             immunity_weighted = weighted.mean(immunity_u5, target_pop, na.rm=T),
             vaccinetype = unique(vaccinetype),
+            parentactivitycode = unique(parentactivitycode),
             Region = unique(Region),
             adm0_name = unique(adm0_name),
             source = unique(source),
@@ -359,7 +380,7 @@ sum(data_province[data_province$vaccinetype == "nOPV2", "target_pop_sum"], na.rm
 data_province <- data_province %>% filter(is.na(adm1_name) == F)
 
 data_national <- data %>% group_by(adm0_name, period) %>%
-  summarize(target_pop_sum = sum(target_pop), 
+  reframe(target_pop_sum = sum(target_pop), 
             population_total_sum = sum(population_total),
             immunity_weighted = weighted.mean(immunity_u5, target_pop, na.rm=T),
             vaccinetype = unique(vaccinetype),
@@ -371,7 +392,7 @@ sum(data_national[data_national$vaccinetype == "mOPV2", "target_pop_sum"], na.rm
 sum(data_national[data_national$vaccinetype == "tOPV", "target_pop_sum"], na.rm=T)
 
 data_quarter <- data %>% group_by(adm0_name, quarter) %>%
-  summarize(target_pop_sum = sum(target_pop), 
+  reframe(target_pop_sum = sum(target_pop), 
             population_total_sum = sum(population_total),
             immunity_weighted = weighted.mean(immunity_u5, target_pop, na.rm=T),
             immunity_weighted_summary = weighted.mean(immunity_weighted, population_total_sum, na.rm=TRUE),
@@ -421,7 +442,7 @@ ggplot(data_province %>% filter(immunity_weighted < 0.5),
   theme_bw() +
   ylab("Estimated Pre-Campaign Type-2 Immunity")
 
-# summary plot of pre-campaign immunity by vaccine type
+# summary of pre-campaign immunity by vaccine type for provinces
 data_province <- data_province %>% group_by(source) %>% mutate(pop_weight = target_pop_sum / sum(target_pop_sum, na.rm=T))
 
 ggplot(data_province %>% 
@@ -437,9 +458,9 @@ ggplot(data_province %>%
 data_province %>% 
   group_by(source, parentactivitycode) %>% 
   # filter(region %in% c("AFRO", "EMRO", "EURO")) %>%
-  filter(region %in% c("AFRO")) %>%
+  filter(Region %in% c("AFRO")) %>%
   filter(start_date > "2016-05-01") %>%
-  summarize(sum = sum(target_pop, na.rm=T)) %>%
+  summarize(sum = sum(target_pop_sum, na.rm=T)) %>%
   ungroup() %>%
   group_by(source) %>%
   summarize(count = n(),
@@ -450,14 +471,12 @@ data_province %>%
             q3 = quantile(sum, 0.75),
             max = max(sum))
 
-temp <- 
-  polis_pops %>%
-  filter(region %in% c("AFRO")) %>%
-  filter(start_date > "2016-05-01") %>%
-  group_by(source, parentactivitycode) %>%
-  summarize(sum = sum(target_pop, na.rm=T)) 
-wilcox.test(temp$sum ~ temp$source,
-            exact = FALSE)
+data_province %>% 
+  filter(Region %in% c("AFRO")) %>%
+  ggplot(aes(x = source, color = source, y = weighted.mean(immunity_weighted, w = pop_weight))) +
+    geom_boxplot() +
+    theme(legend.position = "none") +
+    ylab("Estimated Pre-Campaign\nType-2 Immunity")
 
 
 ggplot(data_province %>% filter(!(adm0_name %in% c("NIGERIA", "DEMOCRATIC REPUBLIC OF THE CONGO"))), 
@@ -469,7 +488,7 @@ ggplot(data_province %>% filter(!(adm0_name %in% c("NIGERIA", "DEMOCRATIC REPUBL
   scale_y_continuous(limits = c(0,1)) +
   ylab("Estimated Pre-Campaign\nType-2 Immunity")
 
-# summary statistics on pre-campaign immunity by vaccine type
+# summary statistics on pre-campaign immunity by vaccine type at province level
 data_province %>%
   filter(is.na(immunity_weighted)==F) %>%
   # filter(!(adm0_name %in% c("NIGERIA", "DEMOCRATIC REPUBLIC OF THE CONGO"))) %>%
@@ -480,6 +499,53 @@ data_province %>%
             mean = weighted.mean(immunity_weighted, target_pop_sum, na.rm=T),
             q3 = quantile(immunity_weighted, 0.75),
             max = max(immunity_weighted))
+
+# Summary of pre-campaign immunity by vaccine type at the SIA level (For paper)
+data_sia <- data %>% group_by(parentactivitycode, period) %>%
+  reframe(target_pop_sum = sum(target_pop), 
+          population_total_sum = sum(population_total),
+          immunity_weighted = weighted.mean(immunity_u5, target_pop, na.rm=T),
+          vaccinetype = unique(vaccinetype),
+          Region = unique(Region),
+          adm0_name = unique(adm0_name),
+          source = unique(source),
+          start_date = min(start_date),
+          quarter = unique(quarter),
+          week = unique(week))
+sum(data_sia[data_sia$vaccinetype == "nOPV2", "target_pop_sum"], na.rm=T)
+
+temp <- data_sia %>%
+  filter(is.na(immunity_weighted)==F) %>%
+  filter(Region %in% c("AFRO")) %>%
+  filter(start_date > "2016-05-01")
+
+temp %>% 
+  group_by(source) %>%
+  summarize(min = min(immunity_weighted),
+            q1 = quantile(immunity_weighted, 0.25),
+            median = median(immunity_weighted),
+            mean = weighted.mean(immunity_weighted, target_pop_sum, na.rm=T),
+            q3 = quantile(immunity_weighted, 0.75),
+            max = max(immunity_weighted))
+
+wilcox.test(temp$immunity_weighted ~ temp$source,
+            exact = FALSE)
+
+sia_immunity_box <- temp %>%
+  ggplot(aes(x = source, y = immunity_weighted, color = source)) +
+  # geom_violin() +
+  geom_boxplot() +
+  # geom_jitter(alpha = 0.5) +
+  theme_bw() +
+  guides(color = "none") +
+  ylab("Pre-Campaign Type-2 Immunity") +
+  xlab("")
+ggsave(plot = sia_immunity_box, "figures/immunity.png", device = "png", units = "in", width = 3, height = 3)
+
+# SIA target and immunity boxplots (For paper)
+plot_layout(sia_target_box / sia_immunity_box)
+ggsave("figures/SIA target and immunity.png", device = "png", units = "in", width = 3, height = 6)
+
 
 #### Define which provinces have ES ####
 # make a list of provinces with an ES result within past year. Manually cross-checked with ES.world
