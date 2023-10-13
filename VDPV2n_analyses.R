@@ -22,14 +22,16 @@ Func_region = function(ADM_0){
             "DJIBOUTI", "ERITREA", "JORDAN",
             "IRAN (ISLAMIC REPUBLIC OF)", "LIBYA", "SYRIAN ARAB REPUBLIC", 
             "YEMEN","LEBANON", "LIBYA", "OCCUPIED PALESTINIAN TERRITORY, INCLUDING EAST JERUSALEM")
-  WPRO <- c("PHILIPPINES", "MALAYSIA","LAO PEOPLE'S DEMOCRATIC REPUBLIC")
+  WPRO <- c("PHILIPPINES", "MALAYSIA","LAO PEOPLE'S DEMOCRATIC REPUBLIC", "CHINA")
   SEARO <- c("INDONESIA", "MYANMAR", "INDIA", "NEPAL")
-  EURO <- c("TAJIKISTAN", "GEORGIA", "RUSSIAN FEDERATION", "UKRAINE")
+  EURO <- c("TAJIKISTAN", "GEORGIA", "RUSSIAN FEDERATION", "UKRAINE", "ISRAEL", "THE UNITED KINGDOM")
+  AMRO <- c("UNITED STATES OF AMERICA", "CANADA")
   ifelse(ADM_0 %in% EMRO, "EMRO",
          ifelse(ADM_0 %in% WPRO, "WPRO",
                 ifelse(ADM_0 %in% SEARO, "SEARO",
                        ifelse(ADM_0 %in% EURO, "EURO",
-                              "AFRO"))))
+                              ifelse(ADM_0 %in% AMRO, "AMRO",
+                              "AFRO")))))
 }
 
 Func_period_to_quarter = function(period){
@@ -239,7 +241,7 @@ viruses = viruses_raw %>%
          dot_year_month = tolower(paste(year(virus_date), month(virus_date), sep = ":")))
 
 # Check emergence group names
-novel_emergences <- c("RDC-SKV-1", "RDC-TAN-2", "RDC-KOR-1", "CAF-KEM-1", "NIE-KBS-1", "RDC-HKA-2","CAF-BNG-3", "BOT-FRA-1", "EGY-NOR-1")
+novel_emergences <- c("RDC-SKV-1", "RDC-TAN-2", "RDC-KOR-1", "CAF-KEM-1", "NIE-KBS-1", "RDC-HKA-2","CAF-BNG-3", "BOT-FRA-1", "EGY-NOR-1", "CAE-EXT-1")
 novel_emergences %in% c(viruses$vdpv_emergence_group_name %>% unique())
 
 viruses %>% filter(vdpv_emergence_group_name %in% novel_emergences) %>% View()
@@ -322,6 +324,21 @@ viruses %>% filter(virus_type_name == "cVDPV2", period > 2021,
   ylab("Monthly cVDPV2 Cases")
 
 sias_figure <- left_join(sias_figure, viruses_count_quarter, by = c("quarter", "source"))
+
+# Description of emergences (for paper)
+viruses %>%
+  filter(index_isolate == TRUE, virus_date > "2016-05-01") %>% 
+  mutate(seeded_post_switch = if_else(seeding_date > "2016-05-01","post", "pre")) %>%
+  group_by(seeded_post_switch, source) %>%
+  reframe(count = n())
+viruses %>%
+  filter(index_isolate == TRUE, seeding_date > "2016-05-01") %>% 
+  group_by(region_who_code, source) %>%
+  reframe(count = n())
+viruses %>%
+  filter(index_isolate == TRUE, seeding_date > "2016-05-01") %>% 
+  group_by(region_who_code, source, admin0name) %>%
+  reframe(count = n())
 
 #### Immunity mapper data U5 ####
 # Run immunity_calc_eag.R to produce new U5 immunity estimates to use here
@@ -691,6 +708,8 @@ ggplot(sias_figure, aes(x = quarter)) +
 seq_lag_fit <- read_csv("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/results/sequence_lag_fit.csv")
 max_lag = 365
 
+seq_lag_fit$region <- Func_region(seq_lag_fit$admin0name)
+
 period_midpoints <- round(365/24 * seq(1, 11, 2))
 
 # Convert from days into period using mean during that period (aka month)
@@ -709,12 +728,13 @@ seq_lag_fit_period <- seq_lag_fit %>%
 # seq_lag_fit_period %>% filter(admin0name == "CENTRAL AFRICAN REPUBLIC") %>% View()
 
 ggplot() +
-  geom_line(aes(x=day,y=pseq),colour='black',linetype=2,data=seq_lag_fit) +
-  geom_point(aes(x=day,y=pseq_mean),colour='red',data=seq_lag_fit_period) +
+  geom_line(aes(x=day,y=pseq),colour='black',linetype=2,data=seq_lag_fit %>% filter(region %in% c("AFRO"))) +
+  geom_point(aes(x=day,y=pseq_mean),colour='red',data=seq_lag_fit_period %>% filter(region %in% c("AFRO"))) +
   facet_wrap(vars(admin0name))+
   theme(legend.position = 'none') +
   scale_y_continuous('Proportion of Sequences Available',breaks = c(0,0.5,1))+
   scale_x_continuous('Days after collection', limits=c(0,max_lag),oob=scales::squish)
+ggsave("figures/seq lag afro.png", device = "png", units = "in", width = 8, height = 6) #(for paper)
 
 #### Estimate (ttl) lag from index isolate to confirmatory isolate ####
 
@@ -952,14 +972,35 @@ s <- 0.2689168 #sd log AFP only
 m_es <- 2.16862 #mean log AFP and ES
 s_es <- 0.2274121 #sd log AFP and ES
 
+func_afp_only <- function(x) dlnorm(x, meanlog=m, sdlog = s)
+func_afp_es <- function(x) dlnorm(x, meanlog=m_es, sdlog = s_es)
+
 #visualize parameters
 curve(dlnorm(x, meanlog = m, sdlog = s), from=0, to=36)
 curve(dlnorm(x, meanlog = m_es, sdlog = s_es), from=0, to=36)
 curve(dlnorm(x, meanlog = m*1.25, sdlog = s), from=0, to=36)
 
-sum(dlnorm(1:48, m, s))
-cumsum(dlnorm(1:48, m, s)) # 18 month cumsum is 95.6%
-cumsum(dlnorm(1:48, m_es, s_es)) # 13 month cumsum is 97.2%
+# ggplot
+afp_only <- dlnorm(1:48, m, s)
+afp_es <- dlnorm(1:48, m_es, s_es)
+
+sum(afp_only)
+cumsum(afp_only) # 18 month cumsum is 95.6%
+cumsum(afp_es) # 13 month cumsum is 97.2%
+
+ttd_df <- data.frame("Surveillance" = "AFP Only", "Month" = 1:length(afp_only), "Density" = afp_only)
+ttd_df <- ttd_df %>% rbind(data.frame("Surveillance" = "AFP & ES", "Month" = 1:length(afp_es), "Density" = afp_es))
+
+ggplot() +
+  stat_function(fun = func_afp_only, aes(color = "AFP Only")) +
+  stat_function(fun = func_afp_es, aes(color = "AFP & ES")) +
+  scale_x_continuous(name = "Months", limits = c(0, 36), breaks = seq(0,36,6)) +
+  scale_y_continuous(name = "Density") +
+  labs(color = "Surveillance") +
+  scale_color_manual(values = c("blue", "black")) +
+  theme_bw() +
+  theme(legend.position = c(.7,.7))
+ggsave("figures/time to detection.png", device = "png", units = "in", width = 3, height = 3)
 
 # placeholder for 7 years of post-switch data, plus 4 years of emergence risk forward
 max(data_province$period) - min(data_province$period)
