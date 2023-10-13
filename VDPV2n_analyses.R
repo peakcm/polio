@@ -1135,15 +1135,14 @@ ggplot() +
 
 # Count post-switch Sabin-2 emergences
 viruses %>% filter(source == "Sabin2", index_isolate == "TRUE", seeding_date > "2016-03-01") %>% 
-  filter(region_who_code %in% c("AFRO", "EMRO", "EURO")) %>% 
+  filter(region_who_code %in% c("AFRO")) %>% 
   # group_by(region_who_code) %>% 
   # group_by(year(virus_date)) %>%
   summarize(count = n())
-sabin_emerge <- 74 # 74 post-switch Sabin-2 emergences in AFRO/EMRO/EURO.
+sabin_emerge <- 55 # 55 post-switch Sabin-2 emergences in AFRO
 
 # Tune alpha to match the number of observed Sabin-2 emergences observed.
-# alpha = 2.15*10^-6 # Updated 8/17
-alpha = 2.117*10^-6 # Updated 9/27
+alpha = 2.78*10^-6 # Updated 10/13 for AFRO only
 
 data_province <- data_province %>% 
   mutate(U_mOPV2 = Func_u(p=population_total_sum,
@@ -1164,6 +1163,7 @@ data_province <- data_province %>%
 
 tt_conv_data <- data_province %>% 
   filter(is.na(U_mOPV2) == F) %>%
+  filter(Region %in% c("AFRO")) %>%
   # filter(!(adm0_name %in% c("NIGERIA", "DEMOCRATIC REPUBLIC OF THE CONGO"))) %>%
   # filter(period < 2021.750) %>%
   select(adm0_name, adm1_name, Region, period, vaccinetype, source, U_mOPV2, ES)
@@ -1220,13 +1220,12 @@ ggplot() +
 # Calculate cdf before defined dates
 daily_U_conv %>% 
   # filter(period <= 2023.583) %>%
-  # filter(period <= 2023.750) %>%
+  filter(period <= 2023.750) %>%
   # filter(period > 2023.750) %>%
   # filter(period >= 2020, period < 2021) %>%
   # filter(period >= 2021, period < 2022) %>%
   # filter(period >= 2022, period < 2023) %>%
   # filter(period >= 2023, period < 2024) %>%
-  # filter(period >= 2023, period <= 2023.50) %>%
   group_by(source) %>%
   summarize(sum(U_mOPV2))
 
@@ -1313,7 +1312,7 @@ viruses_count_period_DRC <- viruses %>%
 viruses %>% 
   filter(admin0name == "DEMOCRATIC REPUBLIC OF THE CONGO") %>%
   filter(source == "Sabin2", index_isolate == "TRUE", seeding_date > "2016-03-01") %>% 
-  filter(region_who_code %in% c("AFRO", "EMRO", "EURO")) %>% View() # 17 Sabin2-emergences
+  View() # 17 Sabin2-emergences
 alpha_DRC <- 6.6e-06 # based on 17 DRC emergences from Sabin2 use
 
 data_province_DRC <- data_province %>% 
@@ -1384,9 +1383,8 @@ daily_U_conv %>%
 
 #### Repeat, but only for Nigeria ####
 polis_pops %>% filter(adm0_name == "NIGERIA") %>% group_by(source)%>% filter(start_date < today()) %>% summarize(sum = sum(target_pop))
-# Big question about what population to use for DRC for nOPV2. 30m or 23m?
 
-viruses_count_period_DRC <- viruses %>% 
+viruses_count_period_NIE <- viruses %>% 
   filter(admin0name == "NIGERIA") %>%
   filter(seeding_date > "2016-03-01") %>%
   group_by(period, source) %>% 
@@ -1394,8 +1392,8 @@ viruses_count_period_DRC <- viruses %>%
 
 viruses %>% 
   filter(admin0name == "NIGERIA") %>%
-  filter(source == "Sabin2", index_isolate == "TRUE", seeding_date > "2016-03-01") %>% 
-  filter(region_who_code %in% c("AFRO", "EMRO", "EURO")) %>% View() # 10 Sabin2-emergences
+  filter(source == "Sabin2", index_isolate == "TRUE", seeding_date > "2016-03-01") %>%
+  View() # 10 Sabin2-emergences
 alpha_Nigeria <- 1.58e-06 # based on 10 NIGERIA emergences from Sabin2 use
 
 data_province_NIE <- data_province %>% 
@@ -1447,7 +1445,7 @@ ggplot() +
   geom_vline(xintercept = 2023.750, size = 1) +
   # geom_vline(xintercept = 2021.25, color = "red", alpha = 0.25, size = 1) +
   geom_line(data = daily_U_conv, aes(x = period, y = U_mOPV2, color = source), size = 1) +
-  geom_point(data = viruses_count_period_DRC %>% filter(emergences > 0), aes(x = period, y = emergences, color = source, shape = source), size = 2) +
+  geom_point(data = viruses_count_period_NIE %>% filter(emergences > 0), aes(x = period, y = emergences, color = source, shape = source), size = 2) +
   theme_bw() +
   ylab("Expected cVDPV2 Emergences\n(Assuming Seeding at mOPV2 Rate)") +
   xlab("Month") +
@@ -1463,6 +1461,96 @@ daily_U_conv %>%
   # filter(period > 2023.750) %>%
   group_by(source) %>%
   summarize(sum(U_mOPV2))
+
+#### Sensitivity analysis: clusters of emergences ####
+viruses %>%
+  filter(index_isolate == TRUE, admin0name %in% c("ANGOLA", "CENTRAL AFRICAN REPUBLIC", "DEMOCRATIC REPUBLIC OF THE CONGO")) %>%
+  select(vdpv_emergence_group_name, admin0name, admin1name, virus_date, vdpv_nt_changes_from_sabin) %>%
+  arrange(admin0name, virus_date) %>%
+  View()
+
+cluster_emergences <- c("ANG-HUI-1", "ANG-LNO-2", "ANG-LUA-1",
+                        #"ANG_LNO-2", #keep one from each cluster
+                        #"CAF-BAM-1", #keep one from each cluster
+                        "CAF-BIM-3", "CAF-BAM-2", "CAF-BIM-2", "CAF-BIM-1")
+
+viruses_count_period_cluster <- viruses %>% 
+  filter(!(vdpv_emergence_group_name %in% cluster_emergences)) %>%
+  filter(region_who_code %in% c("AFRO")) %>%
+  filter(seeding_date > "2016-03-01") %>%
+  group_by(period, source) %>% 
+  summarize(emergences = sum(index_isolate==TRUE))
+viruses_count_period_cluster %>% ungroup() %>%
+  filter(source == "Sabin2") %>% summarize(sum = sum(emergences)) # 48 non cluster AFRO emergences
+
+alpha_cluster <- 2.41e-06
+
+data_province_cluster <- data_province %>% 
+  filter(Region %in% c("AFRO")) %>%
+  mutate(U_mOPV2 = Func_u(p=population_total_sum,
+                          q = immunity_weighted,
+                          alpha = alpha_cluster))
+
+tt_conv_data <- data_province_cluster %>% 
+  filter(is.na(U_mOPV2) == F) %>%
+  # filter(!(adm0_name %in% c("NIGERIA", "DEMOCRATIC REPUBLIC OF THE CONGO"))) %>%
+  # filter(period < 2021.750) %>%
+  select(adm0_name, adm1_name, Region, period, vaccinetype, source, U_mOPV2, ES)
+
+period_mat <- matrix(nrow = nrow(tt_conv_data), ncol = length(period),  0)
+
+tt_conv_data <- data.frame(tt_conv_data, period_mat)
+names(tt_conv_data) <- c("adm0_name","adm1_name", "region", "period","vaccinetype","source","U_mOPV2", "ES",
+                         period)
+
+# Output: Estimate U_d_i for each day d and each campaign i for the probability of detecting an emergence on that day from that campaign
+for (i in 1:nrow(tt_conv_data)){
+  start = which(names(tt_conv_data) == round(tt_conv_data[i, "period"],3)) 
+  end = start + 59
+  tt_conv_data[i, start:end] <- Func_tt_conv(U_mOPV2 = tt_conv_data[i, "U_mOPV2"],
+                                             adm0_name = tt_conv_data[i, "adm0_name"],
+                                             adm1_name = tt_conv_data[i, "adm1_name"],
+                                             region = tt_conv_data[i, "region"], 
+                                             ES = tt_conv_data[i, "ES"],
+                                             ttl_include = F)
+}
+
+# calculate sum of U_d for each day d across all campaigns i of each vaccine type. 
+daily_U_conv <- data.frame(period = rep(period, each=2))
+daily_U_conv$source <- c("Sabin2", "nOPV2")
+daily_U_conv$U_mOPV2 <- 0
+
+for (i in 9:ncol(tt_conv_data)){
+  period_i = names(tt_conv_data)[i]
+  U_sabin2_sum <- sum(tt_conv_data[tt_conv_data$source == "Sabin2", i])
+  U_nOPV2_sum <- sum(tt_conv_data[tt_conv_data$source == "nOPV2", i])
+  
+  daily_U_conv[daily_U_conv$period == period_i & daily_U_conv$source == "Sabin2", "U_mOPV2"] <- U_sabin2_sum
+  daily_U_conv[daily_U_conv$period == period_i & daily_U_conv$source == "nOPV2", "U_mOPV2"] <- U_nOPV2_sum
+}
+
+# Plot points and lines for U_d
+ggplot() +
+  geom_vline(xintercept = 2023.750, size = 1) +
+  # geom_vline(xintercept = 2021.25, color = "red", alpha = 0.25, size = 1) +
+  geom_line(data = daily_U_conv, aes(x = period, y = U_mOPV2, color = source), size = 1) +
+  geom_point(data = viruses_count_period_NIE %>% filter(emergences > 0), aes(x = period, y = emergences, color = source, shape = source), size = 2) +
+  theme_bw() +
+  ylab("Expected cVDPV2 Emergences\n(Assuming Seeding at mOPV2 Rate)") +
+  xlab("Month") +
+  scale_y_continuous(limits = c(0, 5)) +
+  scale_shape_manual(values = c(19,1)) +
+  theme(legend.position = c(0.85, 0.85)) +
+  ggtitle("Remove ANG, CAR clusters") +
+  scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
+
+# Calculate cdf before defined dates (eg, March 1)
+daily_U_conv %>% 
+  filter(period <= 2023.750) %>%
+  # filter(period > 2023.750) %>%
+  group_by(source) %>%
+  summarize(sum(U_mOPV2))
+
 
 #### Estimate uncertainty ####
 expand_grid(count = c(43, 66)) %>% 
