@@ -128,7 +128,7 @@ polis_pops %>%
   group_by(source, parentactivitycode) %>% 
   # filter(region %in% c("AFRO", "EMRO", "EURO")) %>%
   filter(region %in% c("AFRO")) %>%
-  filter(start_date > "2016-05-01") %>%
+  filter(start_date >= "2016-05-01") %>%
   summarize(sum = sum(target_pop, na.rm=T)) %>%
   ungroup() %>%
   group_by(source) %>%
@@ -143,17 +143,31 @@ polis_pops %>%
 temp <- 
   polis_pops %>%
   filter(region %in% c("AFRO")) %>%
-  filter(start_date > "2016-05-01") %>%
+  filter(start_date >= "2016-05-01") %>%
   group_by(source, parentactivitycode) %>%
   summarize(sum = sum(target_pop, na.rm=T)) 
-wilcox.test(temp$sum ~ temp$source,
+wilcox.test(temp$sum ~ temp$source, paired = FALSE,
             exact = FALSE)
+
+# Test for normality
+temp %>%
+  group_by(source) %>%
+  summarise(`W Stat` = shapiro.test(sum)$statistic,
+            p.value = shapiro.test(sum)$p.value)
+
+#Perform QQ plots by group
+ggplot(data = temp, mapping = aes(sample = sum, color = source, fill = source)) +
+  stat_qq_band(alpha=0.5, conf=0.95, qtype=1, bandType = "boot") +
+  stat_qq_line(identity=TRUE) +
+  stat_qq_point(col="black") +
+  facet_wrap(~ source, scales = "free") +
+  labs(x = "Theoretical Quantiles", y = "Sample Quantiles") + theme_bw()
 
 sia_target_box <- polis_pops %>% 
   group_by(source, parentactivitycode) %>% 
   # filter(region %in% c("AFRO", "EMRO", "EURO")) %>%
   filter(region %in% c("AFRO")) %>%
-  filter(start_date > "2016-05-01") %>%
+  filter(start_date >= "2016-05-01") %>%
   summarize(sum = sum(target_pop, na.rm=T)) %>%
   ungroup() %>%
   ggplot() +
@@ -169,7 +183,7 @@ ggsave(plot = sia_target_box, "figures/target pop.png", device = "png", units = 
 # Simplify fields
 polis_pops_full <- polis_pops
 polis_pops <- polis_pops %>% 
-  filter(start_date > "2016-05-01") %>%
+  filter(start_date >= "2016-05-01") %>%
   select(adm0_name, adm1_name, adm2_name, parentactivitycode,  childactivitycode, 
                                     start_date, vaccinetype, GUID,
                                     target_pop, period, quarter, source, region)
@@ -361,6 +375,8 @@ immunity_u5_data <- immunity_u5_data %>%
   left_join(polis_pops %>% select(GUID, adm0_name, adm1_name,adm2_name, target_pop) %>%
               group_by(GUID) %>% filter(row_number() == 1), 
             by = "GUID")
+
+write.csv(immunity_u5_data, "immunity_6_59mo.csv")
 
 #### Combine SIA and immunity datasets ####
 # Join data on GUID, and period, noting that immunity from campaign doesn't impact that period yet
@@ -656,17 +672,26 @@ polis_pops %>%
   summarize(target_pop = sum(target_pop, na.rm=T)) 
 
 #### Function to calculate expected count of emergence from campaign ####
+theta_size_mean  <- 0.795 
+theta_size_lower <- 0.503
+theta_size_upper <- 1.10
+
+theta_u5_mean  <- -1.98
+theta_u5_lower <- -3.31
+theta_u5_upper <- -0.647
+
 #p is the total population (not U-5)
 #q is the immunity in children under 5-years
 #alpha is the scaling factor for total number of observed emergences (see Supplemental section 4 in Gray 2022) 
-Func_u = function(p, q, alpha = 2.025*10^-6){ # alpha in march 2023 was 2.33*10^-6, 2.025*10^-6 in June 2023
-  alpha * exp(-0.205*log(p) - 1.98*q) * p
+Func_u = function(p, q, alpha = 2.025*10^-6, theta_size = theta_size_mean, theta_u5 = theta_u5_mean){ # alpha in march 2023 was 2.33*10^-6, 2.025*10^-6 in June 2023
+  alpha * exp((theta_size-1)*log(p) + theta_u5*q) * p
 }
 alpha = 2.16*10^-6 # Updated 8/17
 
 # testing function
-Func_u(1e6, c(.05, .5, .95), alpha = 6.1*10^-6)
-Func_u(3e7, c(.05, .5, .95))
+Func_u(1e6, c(.05, .5, .95), alpha) # fixed pop size, increasing immunity, should have decreasing emergences
+Func_u(c(1e5, 1e6, 1e7), .5, alpha) # increasing pop size, fixed immunity, should have increasing emergences
+Func_u(3e7, c(.2, .4, .6, .8)) # compare with figure 4 in Gray 2023 paper
 
 # Function to calculate total expected number of emergences using initial value for alpha, just to set things up.
 data_province <- data_province %>% 
@@ -1286,10 +1311,10 @@ fig_cum_emergences <-
     geom_vline(xintercept = 2021.25, color = "red", alpha = 0.25, size = 1) +
     geom_line(data = temp, aes(x = period, y = value, color = source, linetype = name), size = 1) +
     theme_bw() +
-    ylab("Cumulative cVDPV2 Emergences") +
+    ylab("Cumulative cVDPV2 Emergences in\nthe African Region") +
     scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
     scale_linetype_discrete(name = "Emergences",
-                            labels = c("Observed", "Expected based\non mOPV2 Rate")) +
+                            labels = c("Observed", "Expected based\non Sabin 2 Rate")) +
     # theme(legend.position = c(0.85, 0.3)) +
     force_panelsizes(rows = unit(4, "in"),
                      cols = unit(5, "in")) +
