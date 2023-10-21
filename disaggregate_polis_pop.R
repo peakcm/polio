@@ -67,3 +67,15 @@ sia %>% ungroup %>% filter(start_date > ymd('2014-01-01'), str_detect(vaccinetyp
 sia %>% ungroup %>% 
   filter(vaccinetype == 'nOPV2', status == 'Done') %>% 
   summarise(total = sum(target_pop, na.rm=T)/1e6)
+
+# Summary of campaigns for PHL, IND, MYS
+sia_polis %>%
+  filter(admin0name %in% c("PHILIPPINES", "INDONESIA", "MALAYSIA")) %>%
+  filter(vaccine_type %in% c("nOPV2", "mOPV2", "tOPV")) %>%
+  filter(date_from >= "2016-05-01") %>%
+  filter(status == "Done") %>%
+  group_by(parent_id, admin0name, vaccine_type) %>%
+  summarize(calculated_target_population = as.numeric(unique(calculated_target_population))) %>%
+  ungroup() %>%
+  group_by(admin0name, vaccine_type) %>%
+  summarize(calculated_target_population = sum(calculated_target_population))

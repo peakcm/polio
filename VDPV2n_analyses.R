@@ -83,29 +83,40 @@ polis_pops %>% ungroup() %>% filter(vaccinetype == "nOPV2")  %>% summarize(pop= 
 polis_pops %>% group_by(adm0_name) %>% 
   filter(vaccinetype == "nOPV2") %>%
   summarize(target_pop = sum(target_pop, na.rm=T)) %>% View()
-# Lacking in Indonesia. Too many in Nigeria (440349303 vs 397787446)
+# 0 in Indonesia.
+# Nigeria at 440,349,303 vs 462,690,789 in tracker
+# CIV at 4,234,737 vs 11,849,894 in tracker
+# Kenya at 1,879,402 vs 5,019,577 in tracker
 
 # !!!!!!! MANUAL !!!!!! Scale down Nigeria by 0.903 (397787446 / 440349303)
-polis_pops[polis_pops$adm0_name == "NIGERIA" & polis_pops$vaccinetype == "nOPV2", "target_pop"] %>% sum()
-polis_pops[polis_pops$adm0_name == "NIGERIA" & polis_pops$vaccinetype == "nOPV2", "target_pop"] <- 
-  polis_pops[polis_pops$adm0_name == "NIGERIA" & polis_pops$vaccinetype == "nOPV2", "target_pop"] * 0.903
+# polis_pops[polis_pops$adm0_name == "NIGERIA" & polis_pops$vaccinetype == "nOPV2", "target_pop"] %>% sum()
+# polis_pops[polis_pops$adm0_name == "NIGERIA" & polis_pops$vaccinetype == "nOPV2", "target_pop"] <- 
+#   polis_pops[polis_pops$adm0_name == "NIGERIA" & polis_pops$vaccinetype == "nOPV2", "target_pop"] * 0.903
 
 # !!!!!!! MANUAL !!!!!! Distribute 12m to Indonesia equally across districts
 indo_rows <- polis_pops %>% filter(vaccinetype=="nOPV2", adm0_name == "INDONESIA") %>% nrow()
 polis_pops[polis_pops$adm0_name == "INDONESIA" & polis_pops$vaccinetype=="nOPV2", "target_pop"] <- 12415310/indo_rows
 
+# !!!!!!! MANUAL !!!!!! Distribute 14.5m to Philippines equally across districts (based on total post-switch use)
+phl_rows <- polis_pops %>% filter(vaccinetype=="mOPV2", adm0_name == "PHILIPPINES") %>% nrow()
+polis_pops[polis_pops$adm0_name == "PHILIPPINES" & polis_pops$vaccinetype=="mOPV2", "target_pop"] <- 14535328/phl_rows
+
+# !!!!!!! MANUAL !!!!!! Distribute 1.5m to Malaysia equally across districts (based on total post-switch use)
+mys_rows <- polis_pops %>% filter(vaccinetype=="mOPV2", adm0_name == "MALAYSIA") %>% nrow()
+polis_pops[polis_pops$adm0_name == "MALAYSIA" & polis_pops$vaccinetype=="mOPV2", "target_pop"] <- 1549306/mys_rows
+
 # Gut check nOPV2 usage
 polis_pops %>% filter(vaccinetype == "nOPV2") %>% summarize(pop = sum(target_pop, na.rm=T))
 
 # vaccine usage post-switch
-polis_pops %>% filter(region %in% c("AFRO", "EMRO", "EURO"), start_date > "2016-05-01") %>% group_by(source) %>%
+polis_pops %>% 
+  filter(start_date > "2016-05-01") %>%
+  group_by(source) %>%
   summarize(pop = sum(target_pop, na.rm=T))
 
 polis_pops %>%
-  # filter(region %in% c("AFRO", "EMRO", "EURO")) %>%
   filter(start_date > "2016-05-01") %>%
-  group_by(vaccinetype) %>%
-  # group_by(region) %>%
+  group_by(source, region) %>%
   summarize(pop = sum(target_pop, na.rm=T))
 
 polis_pops %>%
@@ -119,8 +130,8 @@ polis_pops %>%
   summarize(pop = sum(target_pop, na.rm=T))
 
 polis_pops %>%
-  filter(start_date > "2016-05-01", adm0_name == "NIGERIA") %>%
-  group_by(vaccinetype, region) %>%
+  filter(start_date > "2016-05-01", adm0_name %in% c("NIGERIA", "DEMOCRATIC REPUBLIC OF THE CONGO", "PAKISTAN", "EGYPT")) %>%
+  group_by(source, region, adm0_name) %>%
   summarize(pop = sum(target_pop, na.rm=T))
 
 # Compare campaign size by vaccine type (For paper)
@@ -216,28 +227,22 @@ fig_cum_doses <-
                      cols = unit(5, "in"))
 ggsave(plot = fig_cum_doses, "figures/Cumulative Doses AFRO.png", device = "png", units = "in", width = 7, height = 3)
 
-# Plot annual number of doses
+# Plot quarterly number of doses
 polis_pops %>%
   filter(!is.na(target_pop)) %>%
   ungroup() %>%
   # mutate(year = floor(period)) %>%
-  group_by(source, quarter) %>%
-  reframe(quarter = unique(quarter),
+  group_by(source, quarter, region) %>%
+  reframe(region = unique(region),
+          quarter = unique(quarter),
           doses = sum(target_pop)) %>%
-  # group_by(source) %>%
-  # arrange(year) %>%
-  # reframe(year = unique(year),
-  #         doses_cumsum = cumsum(doses)) %>%
   ggplot() +
-  geom_vline(xintercept = 2023.75, alpha = 0.25, size = 1) +
-  geom_vline(xintercept = 2021.167, alpha = 0.25, color = "red", size = 1) +
-  geom_line(aes(x = quarter, y = doses/1e6, color = source), size = 1) +
+  geom_col(aes(x = quarter, y = doses/1e6, fill = region), size = 1) +
   theme_bw() +
-  scale_x_continuous(limits = c(2016.0, 2027), breaks = seq(2016, 2027, 2), name = "") +
+  scale_x_continuous(limits = c(2016.0, 2024), breaks = seq(2016, 2024, 2), name = "") +
   scale_y_continuous(name = "Quarterly Doses\n(Million)") +
-  scale_color_discrete(name = "Vaccine Type") +
-  force_panelsizes(rows = unit(2, "in"),
-                   cols = unit(5, "in"))
+  scale_fill_discrete(name = "Region") +
+  facet_grid(source~.) 
 ggsave("figures/Quarterly Doses.png", device = "png", units = "in", width = 7, height = 3)
 
 #### POLIS Virus data ####
@@ -301,7 +306,6 @@ viruses %>%
     geom_col(position = position_dodge2(width = 0.9, preserve = "single")) + coord_flip() +
     facet_grid(region_who_code_AFRO~., scales = "free_y") +
     xlab("") + ylab("Post-Switch cVDPV2 Emergences")
-  # Be sure to check for Egypt emergence
 ggsave("figures/emergences by country.png", device = "png", units = "in", width = 5, height = 7)
 
 # Calculate period and quarter
@@ -730,6 +734,7 @@ ggplot(sias_figure, aes(x = quarter)) +
 #### Surveillance/sequencing lag ####
 
 # Import sequence lab fit (derived from IDM RA Model)
+# surveillance_sequence_lag.R
 seq_lag_fit <- read_csv("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/results/sequence_lag_fit.csv")
 max_lag = 365
 
@@ -1167,7 +1172,7 @@ viruses %>% filter(source == "Sabin2", index_isolate == "TRUE", seeding_date > "
 sabin_emerge <- 55 # 55 post-switch Sabin-2 emergences in AFRO
 
 # Tune alpha to match the number of observed Sabin-2 emergences observed.
-alpha = 2.78*10^-6 # Updated 10/13 for AFRO only
+alpha = 2.37*10^-6 # Updated 10/13 for AFRO only
 
 data_province <- data_province %>% 
   mutate(U_mOPV2 = Func_u(p=population_total_sum,
@@ -1178,19 +1183,9 @@ data_province <- data_province %>%
 
 #### tt_conv output: Estimate U_d_i for each day d and campaign i ####
 
-# data_province %>%
-#   filter(is.na(U_mOPV2) == F) %>%
-#   # filter(!(adm0_name %in% c("NIGERIA", "DEMOCRATIC REPUBLIC OF THE CONGO"))) %>%
-#   select(adm0_name, adm1_name, Region, period, vaccinetype, source, U_mOPV2, ES) %>%
-#   left_join(matrix(nrow=))
-# 
-# 
-
 tt_conv_data <- data_province %>% 
   filter(is.na(U_mOPV2) == F) %>%
   filter(Region %in% c("AFRO")) %>%
-  # filter(!(adm0_name %in% c("NIGERIA", "DEMOCRATIC REPUBLIC OF THE CONGO"))) %>%
-  # filter(period < 2021.750) %>%
   select(adm0_name, adm1_name, Region, period, vaccinetype, source, U_mOPV2, ES)
 
 period_mat <- matrix(nrow = nrow(tt_conv_data), ncol = length(period),  0)
