@@ -260,7 +260,10 @@ viruses = viruses_raw %>%
          dot_year_month = tolower(paste(year(virus_date), month(virus_date), sep = ":")))
 
 # Check emergence group names
-novel_emergences <- c("RDC-SKV-1", "RDC-TAN-2", "RDC-KOR-1", "CAF-KEM-1", "NIE-KBS-1", "RDC-HKA-2","CAF-BNG-3", "BOT-FRA-1", "EGY-NOR-1", "CAE-EXT-1")
+novel_emergences <- c("RDC-SKV-1", "RDC-TAN-2", "RDC-KOR-1",
+                      "CAF-KEM-1", "NIE-KBS-1", "RDC-HKA-2",
+                      "CAF-BNG-3", "BOT-FRA-1", "EGY-NOR-1",
+                      "CAE-EXT-1", "ZIM-HRE-1")
 novel_emergences %in% c(viruses$vdpv_emergence_group_name %>% unique())
 
 viruses %>% filter(vdpv_emergence_group_name %in% novel_emergences) %>% View()
