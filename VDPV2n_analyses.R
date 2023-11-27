@@ -770,20 +770,22 @@ theta_u5_mean  <- -1.98
 theta_u5_lower <- -3.31
 theta_u5_upper <- -0.647
 
-#p is the total population (not U-5)
-#q is the immunity in children under 5-years
-#alpha is the scaling factor for total number of observed emergences (see Supplemental section 4 in Gray 2022) 
-Func_u = function(p, q, alpha = 2.025*10^-6, theta_size = theta_size_mean, theta_u5 = theta_u5_mean){ # alpha in march 2023 was 2.33*10^-6, 2.025*10^-6 in June 2023
+Func_u = function(p,  #p is the total population (not U-5)
+                  q,  #q is the immunity in children under 5-years
+                  alpha = 2.025*10^-6, #alpha is the scaling factor for total number of observed emergences (see Supplemental section 4 in Gray 2022) 
+                  theta_size = theta_size_mean, 
+                  theta_u5 = theta_u5_mean){ 
   alpha * exp((theta_size-1)*log(p) + theta_u5*q) * p
 }
-alpha = 2.16*10^-6 # Updated 8/17
+alpha = 2.16*10^-6 # Initial
 
 # testing function
 Func_u(1e6, c(.05, .5, .95), alpha) # fixed pop size, increasing immunity, should have decreasing emergences
 Func_u(c(1e5, 1e6, 1e7), .5, alpha) # increasing pop size, fixed immunity, should have increasing emergences
 Func_u(3e7, c(.2, .4, .6, .8)) # compare with figure 4 in Gray 2023 paper
+round(Func_u(1e6, 0.5, alpha) * 1.1, 6) == round(Func_u(1e6, 0.5, alpha*1.1), 6) # Expected number of emergences scales linearly with Alpha
 
-# Function to calculate total expected number of emergences using initial value for alpha, just to set things up.
+# testing function
 data_province <- data_province %>% 
   mutate(U_mOPV2 = Func_u(p=population_total_sum,
                           q = immunity_weighted,
@@ -796,7 +798,7 @@ data_province_quarter <- data_province %>% group_by(quarter, source) %>%
             immunity_weighted_summary = weighted.mean(immunity_weighted, population_total_sum, na.rm=TRUE)) %>%
   select(quarter, source, U_mOPV2_sum, immunity_weighted_summary, target_pop_sum)
 
-##### note, immunity_weighted_summary is used above. Consider moving up
+# note, immunity_weighted_summary is used above. Consider moving up
 sias_figure <- left_join(sias_figure, data_province_quarter %>% select("quarter", "source", "U_mOPV2_sum"), by = c("quarter", "source"))
 
 # Assuming poisson distribution of #emergences, calculate total number of expected emergences from probability, based on initial alpha
@@ -851,7 +853,7 @@ ggplot() +
   scale_x_continuous('Days after collection', limits=c(0,max_lag),oob=scales::squish)
 ggsave("figures/seq lag afro.png", device = "png", units = "in", width = 8, height = 6) #(for paper)
 
-#### Estimate (ttl) lag from index isolate to confirmatory isolate ####
+#### Estimate time to linkage (ttl) lag from index isolate to confirmatory isolate ####
 
 # Identify confirmatory isolate for each emergence group
 viruses = viruses %>% ungroup() %>% group_by(vdpv_emergence_group_name) %>%
@@ -1218,7 +1220,6 @@ Func_tt_conv <- function(U_mOPV2,
   }
   ttl = ttl/sum(ttl) # standardize
   
-  
   if (adm0_name %in% seq_lag_fit_period$admin0name){
     seq <- seq_lag_fit_period %>% filter(admin0name == adm0_name) %>% select(dseq_mean)
     seq <- seq[[1]] %>% Func_zeros()
@@ -1260,8 +1261,68 @@ ggplot() +
   geom_line(data = data.frame(seq = tt_conv_test$seq/sum(tt_conv_test$seq), month = 1:60), aes(x = month, y = seq), color = "green") +
   scale_x_continuous(limits = c(0,30))
 
-#### Fit alpha value to current situation ####
+#### Functions to estimate U_d_i for each day d and campaign i ####
+Func_daily_U_conv <- function(data_province, period_input = period){
+  period = period_input
+  tt_conv_data = data_province %>% 
+    filter(is.na(U_mOPV2) == F) %>%
+    select(adm0_name, adm1_name, Region, period, vaccinetype, source, U_mOPV2, ES)
+  period_mat <- matrix(nrow = nrow(tt_conv_data), ncol = length(period),  0)
+  tt_conv_data <- data.frame(tt_conv_data, period_mat)
+  names(tt_conv_data) <- c("adm0_name","adm1_name", "region", "period","vaccinetype","source","U_mOPV2", "ES",
+                           period)
+  
+  # Output: Estimate U_d_i for each day d and each campaign i for the probability of detecting an emergence on that day from that campaign
+  for (i in 1:nrow(tt_conv_data)){
+    start = which(names(tt_conv_data) == round(tt_conv_data[i, "period"],3)) 
+    end = start + 59
+    tt_conv_data[i, start:end] <- Func_tt_conv(U_mOPV2 = tt_conv_data[i, "U_mOPV2"],
+                                               adm0_name = tt_conv_data[i, "adm0_name"],
+                                               adm1_name = tt_conv_data[i, "adm1_name"],
+                                               region = tt_conv_data[i, "region"], 
+                                               ES = tt_conv_data[i, "ES"],
+                                               ttl_include = F)
+  }
+  
+  # calculate sum of U_d for each day d across all campaigns i of each vaccine type. 
+  daily_U_conv <- data.frame(period = rep(period, each=2))
+  daily_U_conv$source <- c("Sabin2", "nOPV2")
+  daily_U_conv$U_mOPV2 <- 0
+  
+  for (i in 9:ncol(tt_conv_data)){
+    period_i = names(tt_conv_data)[i]
+    U_sabin2_sum <- sum(tt_conv_data[tt_conv_data$source == "Sabin2", i])
+    U_nOPV2_sum <- sum(tt_conv_data[tt_conv_data$source == "nOPV2", i])
+    
+    daily_U_conv[daily_U_conv$period == period_i & daily_U_conv$source == "Sabin2", "U_mOPV2"] <- U_sabin2_sum
+    daily_U_conv[daily_U_conv$period == period_i & daily_U_conv$source == "nOPV2", "U_mOPV2"] <- U_nOPV2_sum
+  }
+  return(daily_U_conv)
+}
+# Test
+daily_U_conv <-  data_province %>%
+  mutate(U_mOPV2 = Func_u(p=population_total_sum,
+                          q = immunity_weighted,
+                          alpha = alpha)) %>%
+  filter(Region %in% c("AFRO")) %>% 
+  Func_daily_U_conv()
 
+
+# Function to calculate cdf before defined dates
+Func_cdf_by_date <- function(daily_U_conv, end_date = "2033-01-01", source_input = c("Sabin2", "nOPV2")){
+  end_period <- round(year(as.Date(end_date)) +(month(as.Date(end_date))-1)/12, 3)
+  daily_U_conv %>%
+    filter(source %in% source_input) %>%
+    filter(period <= end_period) %>%
+    group_by(source) %>%
+    summarize(sum(U_mOPV2))
+}
+# Test
+Func_cdf_by_date(daily_U_conv, "2023-11-17")
+Func_cdf_by_date(daily_U_conv)
+Func_cdf_by_date(daily_U_conv, source_input = c("nOPV2"))
+
+#### Fit alpha value to current sabin2 situation ####
 # Count post-switch Sabin-2 emergences
 viruses %>% filter(source == "Sabin2", index_isolate == "TRUE", seeding_date > "2016-03-01") %>% 
   filter(region_who_code %in% c("AFRO")) %>% 
@@ -1270,57 +1331,34 @@ viruses %>% filter(source == "Sabin2", index_isolate == "TRUE", seeding_date > "
   summarize(count = n())
 sabin_emerge <- 55 # 55 post-switch Sabin-2 emergences in AFRO
 
-# Tune alpha to match the number of observed Sabin-2 emergences observed.
+# Begin with default alpha
 alpha = 2.765*10^-6 # Updated 11/17 for AFRO only
 
-data_province <- data_province %>% 
+Sabin2_Expected <-
+  data_province %>%
+  filter(Region %in% c("AFRO")) %>% 
   mutate(U_mOPV2 = Func_u(p=population_total_sum,
                           q = immunity_weighted,
-                          alpha = alpha))
-
-# Run new alpha values, update data_province, pass through tt_conv_output chunk below to converge on sabin_emerge
-
-#### tt_conv output: Estimate U_d_i for each day d and campaign i ####
-
-tt_conv_data <- data_province %>% 
-  filter(is.na(U_mOPV2) == F) %>%
-  filter(Region %in% c("AFRO")) %>%
-  select(adm0_name, adm1_name, Region, period, vaccinetype, source, U_mOPV2, ES)
-
-period_mat <- matrix(nrow = nrow(tt_conv_data), ncol = length(period),  0)
-
-tt_conv_data <- data.frame(tt_conv_data, period_mat)
-names(tt_conv_data) <- c("adm0_name","adm1_name", "region", "period","vaccinetype","source","U_mOPV2", "ES",
-                         period)
-
-# Output: Estimate U_d_i for each day d and each campaign i for the probability of detecting an emergence on that day from that campaign
-for (i in 1:nrow(tt_conv_data)){
-  start = which(names(tt_conv_data) == round(tt_conv_data[i, "period"],3)) 
-  end = start + 59
-  tt_conv_data[i, start:end] <- Func_tt_conv(U_mOPV2 = tt_conv_data[i, "U_mOPV2"],
-                                             adm0_name = tt_conv_data[i, "adm0_name"],
-                                             adm1_name = tt_conv_data[i, "adm1_name"],
-                                             region = tt_conv_data[i, "region"], 
-                                             ES = tt_conv_data[i, "ES"],
-                                             ttl_include = F)
-}
-
-# tt_conv_data %>% filter(adm0_name %in% c("INDONESIA", "MALAYSIA", "PHILLIPINES")) %>% View() # Check for NA's
-
-# calculate sum of U_d for each day d across all campaigns i of each vaccine type. 
-daily_U_conv <- data.frame(period = rep(period, each=2))
-daily_U_conv$source <- c("Sabin2", "nOPV2")
-daily_U_conv$U_mOPV2 <- 0
-
-for (i in 9:ncol(tt_conv_data)){
-  period_i = names(tt_conv_data)[i]
-  U_sabin2_sum <- sum(tt_conv_data[tt_conv_data$source == "Sabin2", i])
-  U_nOPV2_sum <- sum(tt_conv_data[tt_conv_data$source == "nOPV2", i])
+                          alpha = alpha)) %>% # calculate total emergences due to sabin2
+  Func_daily_U_conv() %>%
+  Func_cdf_by_date("2023-11-17", source = c("Sabin2")) %>% .[,2] # calculate emergences expected by date
   
-  daily_U_conv[daily_U_conv$period == period_i & daily_U_conv$source == "Sabin2", "U_mOPV2"] <- U_sabin2_sum
-  daily_U_conv[daily_U_conv$period == period_i & daily_U_conv$source == "nOPV2", "U_mOPV2"] <- U_nOPV2_sum
-}
+# calculate difference between observed and expected
+delta = sabin_emerge / Sabin2_Expected
 
+# adjust alpha
+alpha_new = as.numeric(alpha*delta)
+
+# Run new alpha
+data_province %>%
+  filter(Region %in% c("AFRO")) %>% 
+  mutate(U_mOPV2 = Func_u(p=population_total_sum,
+                          q = immunity_weighted,
+                          alpha = alpha_new)) %>% # calculate total emergences due to sabin2
+  Func_daily_U_conv() %>%
+  Func_cdf_by_date("2023-11-17")
+
+#### Plot daily_U_conv data ####
 # Plot points and lines for U_d by period
 ggplot() +
   geom_vline(xintercept = 2023.833, size = 1) +
@@ -1335,18 +1373,6 @@ ggplot() +
   scale_shape_manual(values = c(19,1)) +
   theme(legend.position = c(0.85, 0.8)) +
   scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
-
-# Calculate cdf before defined dates
-daily_U_conv %>% 
-  # filter(period <= 2023.583) %>%
-  # filter(period <= 2023.833) %>%
-  # filter(period > 2023.750) %>%
-  # filter(period >= 2020, period < 2021) %>%
-  # filter(period >= 2021, period < 2022) %>%
-  # filter(period >= 2022, period < 2023) %>%
-  # filter(period >= 2023, period < 2024) %>%
-  group_by(source) %>%
-  summarize(sum(U_mOPV2))
 
 # Convert to quarterly figure
 daily_U_conv$year <- floor(daily_U_conv$period)
