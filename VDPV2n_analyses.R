@@ -19,13 +19,13 @@ load("VDPV2n_analyses.RData")
 #Create region from ADM_0
 Func_region = function(ADM_0){
   EMRO <- c("AFGHANISTAN", "EGYPT", "IRAQ", "PAKISTAN", "SOMALIA", "SUDAN", 
-            "DJIBOUTI", "ERITREA", "JORDAN",
-            "IRAN (ISLAMIC REPUBLIC OF)", "LIBYA", "SYRIAN ARAB REPUBLIC", 
+            "DJIBOUTI", "ERITREA", "JORDAN", "TÜRKIYE",
+            "IRAN (ISLAMIC REPUBLIC OF)", "LIBYA", "SYRIAN ARAB REPUBLIC", "TUNISIA",
             "YEMEN","LEBANON", "LIBYA", "OCCUPIED PALESTINIAN TERRITORY, INCLUDING EAST JERUSALEM")
-  WPRO <- c("PHILIPPINES", "MALAYSIA","LAO PEOPLE'S DEMOCRATIC REPUBLIC", "CHINA")
+  WPRO <- c("PHILIPPINES", "MALAYSIA","LAO PEOPLE'S DEMOCRATIC REPUBLIC", "CHINA", "PAPUA NEW GUINEA")
   SEARO <- c("INDONESIA", "MYANMAR", "INDIA", "NEPAL")
-  EURO <- c("TAJIKISTAN", "GEORGIA", "RUSSIAN FEDERATION", "UKRAINE", "ISRAEL", "THE UNITED KINGDOM")
-  AMRO <- c("UNITED STATES OF AMERICA", "CANADA")
+  EURO <- c("TAJIKISTAN", "GEORGIA","GERMANY", "RUSSIAN FEDERATION", "UKRAINE", "ISRAEL", "POLAND", "THE UNITED KINGDOM")
+  AMRO <- c("UNITED STATES OF AMERICA", "CANADA", "ARGENTINA", "COLOMBIA", "GUATEMALA", "PERU")
   ifelse(ADM_0 %in% EMRO, "EMRO",
          ifelse(ADM_0 %in% WPRO, "WPRO",
                 ifelse(ADM_0 %in% SEARO, "SEARO",
@@ -191,6 +191,24 @@ sia_target_box <- polis_pops %>%
   guides(color="none")
 ggsave(plot = sia_target_box, "figures/target pop.png", device = "png", units = "in", width = 3, height = 3)
 
+# SIA target pop box plot (for poster)
+sia_target_box_poster <- polis_pops %>% 
+  group_by(source, parentactivitycode) %>% 
+  # filter(region %in% c("AFRO", "EMRO", "EURO")) %>%
+  filter(region %in% c("AFRO")) %>%
+  filter(start_date >= "2016-05-01") %>%
+  summarize(sum = sum(target_pop, na.rm=T)) %>%
+  ungroup() %>%
+  ggplot() +
+  geom_boxplot(aes(x = source, y = sum/1e6, color = source)) +
+  scale_y_log10(name = "SIA Target Population (Million)", 
+                breaks = 10^(2-seq(1,5)),
+                minor_breaks = .5*10^(2-seq(1,5))) +
+  xlab("") +
+  theme_bw() +
+  guides(color="none")
+ggsave(plot = sia_target_box_poster, "figures/target pop_poster.png", device = "png", units = "in", width = 2, height = 3)
+
 # Simplify fields
 polis_pops_full <- polis_pops
 polis_pops <- polis_pops %>% 
@@ -227,7 +245,33 @@ fig_cum_doses <-
                      cols = unit(5, "in"))
 ggsave(plot = fig_cum_doses, "figures/Cumulative Doses AFRO.png", device = "png", units = "in", width = 7, height = 3)
 
-# Plot quarterly number of doses
+# Plot cumulative number of doses (For poster)
+fig_cum_doses_poster <- 
+  polis_pops %>%
+  filter(!is.na(target_pop)) %>%
+  filter(region %in% c("AFRO")) %>%
+  ungroup() %>%
+  group_by(source, period) %>%
+  reframe(period = unique(period),
+          doses = sum(target_pop)) %>%
+  group_by(source) %>%
+  arrange(period) %>%
+  reframe(period = unique(period),
+          doses_cumsum = cumsum(doses)) %>%
+  ggplot() +
+  geom_vline(xintercept = 2023.833, alpha = 0.25, size = 1) +
+  geom_vline(xintercept = 2021.167, alpha = 0.25, color = "red", size = 1) +
+  geom_line(aes(x = period, y = doses_cumsum/1e6, color = source), size = 1) +
+  theme_bw() +
+  theme(text = element_text(size = 20)) +
+  scale_x_continuous(limits = c(2016.0, 2027), breaks = seq(2016, 2027, 2), 
+                     labels = c("'16", "'18", "'20", "'22", "'24", "'26"), name = "") +
+  scale_y_continuous(name = "Cumulative Doses\nin AFR (Million)") +
+  scale_color_discrete(name = "Vaccine Type") +
+  theme(legend.position='none')
+ggsave(plot = fig_cum_doses_poster, "figures/Cumulative Doses AFRO_poster.png", device = "png", units = "in", width = 4.5, height = 4)
+
+# Plot quarterly number of doses (for paper)
 polis_pops %>%
   filter(!is.na(target_pop)) %>%
   ungroup() %>%
@@ -244,6 +288,27 @@ polis_pops %>%
   scale_fill_discrete(name = "Region") +
   facet_grid(source~.) 
 ggsave("figures/Quarterly Doses.png", device = "png", units = "in", width = 7, height = 3)
+
+# Plot quarterly number of doses (for poster)
+polis_pops %>%
+  filter(!is.na(target_pop)) %>%
+  ungroup() %>%
+  # mutate(year = floor(period)) %>%
+  group_by(source, quarter, region) %>%
+  reframe(region = unique(region),
+          quarter = unique(quarter),
+          doses = sum(target_pop)) %>%
+  ggplot() +
+  geom_col(aes(x = quarter, y = doses/1e6, fill = region), size = 1) +
+  theme_bw() +
+  theme(text = element_text(size = 20)) +
+  scale_x_continuous(limits = c(2016.0, 2024), breaks = seq(2016, 2024, 2),
+                     labels = c("'16", "'18", "'20", "'22", "'24"), name = "") +
+  scale_y_continuous(name = "Quarterly Doses\n(Million)") +
+  scale_fill_discrete(name = "Region") +
+  # theme(legend.position = "none") +
+  facet_grid(source~.) 
+ggsave("figures/Quarterly Doses_poster.png", device = "png", units = "in", width = 6.5, height = 3)
 
 #### POLIS Virus data ####
 token = readLines("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/data_local/token.txt")[1]
@@ -402,22 +467,26 @@ data$Region <- sapply(data$adm0_name, Func_region)
 # data %>% filter(is.na(immunity_u5)) %>% View()
 # missing immunity data from Indonesia, Phillipines, and Malaysia. Exclude from analysis
 
+polis_pops %>% filter(vaccinetype == "nOPV2") %>% summarize(sum = sum(target_pop, na.rm = T))
+data %>% group_by(adm1_name, period) %>% filter(vaccinetype == "nOPV2") %>% 
+  summarize(pop = sum(target_pop, na.rm = T)) %>% ungroup() %>% summarize(sum = sum(pop))
 
 # Convert in province-level campaigns (sum across Admin2)
 # When the period and the admin1 name are the same, then sum the population and create a pop-weighted-immunity estimate for the province
-data_province <- data %>% group_by(adm1_name, period) %>%
-  reframe(target_pop_sum = sum(target_pop), 
-            population_total_sum = sum(population_total),
+data_province <- data %>% group_by(adm1_name, period, vaccinetype) %>%
+  reframe(target_pop_sum = sum(target_pop, na.rm = T), 
+            population_total_sum = sum(population_total, na.rm = T),
             immunity_weighted = weighted.mean(immunity_u5, target_pop, na.rm=T),
             vaccinetype = unique(vaccinetype),
-            parentactivitycode = unique(parentactivitycode),
+            # parentactivitycode = unique(parentactivitycode), # Causing an issue with the count
             Region = unique(Region),
             adm0_name = unique(adm0_name),
             source = unique(source),
             start_date = min(start_date),
             quarter = unique(quarter),
-            week = unique(week))
+            week = unique(week)) %>% ungroup()
 sum(data_province[data_province$vaccinetype == "nOPV2", "target_pop_sum"], na.rm=T)
+sum(data_province[data_province$vaccinetype == "nOPV2" & data_province$Region == "AFRO", "target_pop_sum"], na.rm=T)
 data_province <- data_province %>% filter(is.na(adm1_name) == F)
 
 data_national <- data %>% group_by(adm0_name, period) %>%
@@ -496,21 +565,21 @@ ggplot(data_province %>%
   # scale_x_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")+
   ylab("Estimated Pre-Campaign\nType-2 Immunity")
 
-data_province %>% 
-  group_by(source, parentactivitycode) %>% 
-  # filter(region %in% c("AFRO", "EMRO", "EURO")) %>%
-  filter(Region %in% c("AFRO")) %>%
-  filter(start_date > "2016-05-01") %>%
-  summarize(sum = sum(target_pop_sum, na.rm=T)) %>%
-  ungroup() %>%
-  group_by(source) %>%
-  summarize(count = n(),
-            min = min(sum),
-            q1 = quantile(sum, 0.25),
-            median = median(sum),
-            mean = mean(sum),
-            q3 = quantile(sum, 0.75),
-            max = max(sum))
+# data_province %>% 
+#   group_by(source, parentactivitycode) %>% 
+#   # filter(region %in% c("AFRO", "EMRO", "EURO")) %>%
+#   filter(Region %in% c("AFRO")) %>%
+#   filter(start_date > "2016-05-01") %>%
+#   summarize(sum = sum(target_pop_sum, na.rm=T)) %>%
+#   ungroup() %>%
+#   group_by(source) %>%
+#   summarize(count = n(),
+#             min = min(sum),
+#             q1 = quantile(sum, 0.25),
+#             median = median(sum),
+#             mean = mean(sum),
+#             q3 = quantile(sum, 0.75),
+#             max = max(sum))
 
 data_province %>% 
   filter(Region %in% c("AFRO")) %>%
@@ -583,6 +652,20 @@ sia_immunity_box <- temp %>%
   xlab("")
 ggsave(plot = sia_immunity_box, "figures/immunity.png", device = "png", units = "in", width = 3, height = 3)
 
+# Immunity boxplot (for poster)
+sia_immunity_box_poster <- temp %>%
+  ggplot(aes(x = source, y = immunity_weighted, color = source)) +
+  # geom_violin() +
+  geom_boxplot() +
+  # geom_jitter(alpha = 0.5) +
+  theme_bw() +
+  # theme(text = element_text(size = 20)) +
+  guides(color = "none") +
+  ylab("Pre-Campaign Type-2 Immunity") +
+  xlab("")
+ggsave(plot = sia_immunity_box_poster, "figures/immunity_poster.png", device = "png", units = "in", width = 2, height = 3)
+
+
 # SIA target and immunity boxplots (For paper)
 plot_layout(sia_target_box / sia_immunity_box)
 ggsave("figures/SIA target and immunity.png", device = "png", units = "in", width = 3, height = 6)
@@ -648,13 +731,13 @@ ggplot(temp2, aes(fill = source, y = reorder(adm0_name, target_pop), x = target_
   theme_bw()
 
 # National dosage usage (for paper)
-ggplot(temp2, aes(color = source, y = reorder(adm0_name, target_pop_sum), x = target_pop_sum/1e6)) +
+ggplot(temp2, aes(color = source, y = reorder(adm0_name, target_pop), x = target_pop/1e6)) +
   geom_point() +
   ylab(element_blank()) +
   scale_x_log10(name = "Target U5 Population (Million)", 
                 breaks = 10^(seq(0,7,1)),
                 minor_breaks = .5*10^(seq(0,7,1))) +
-  facet_grid(Region_AFRO~., scales = "free") +
+  facet_grid(region_AFRO~., scales = "free") +
   scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type") +
   theme_bw()
 ggsave("figures/doses by country.png", device = "png", units = "in", width = 6, height = 6)
@@ -716,7 +799,7 @@ data_province_quarter <- data_province %>% group_by(quarter, source) %>%
 ##### note, immunity_weighted_summary is used above. Consider moving up
 sias_figure <- left_join(sias_figure, data_province_quarter %>% select("quarter", "source", "U_mOPV2_sum"), by = c("quarter", "source"))
 
-# Assuming poisson distribution of #emergences, calculate total number of expected emergences from probability
+# Assuming poisson distribution of #emergences, calculate total number of expected emergences from probability, based on initial alpha
 data_province %>% group_by(vaccinetype) %>% summarize(pop = sum(target_pop_sum, na.rm=T), U_mOPV2 = sum(U_mOPV2, na.rm=T))
 data_province %>% group_by(source) %>% summarize(pop = sum(target_pop_sum, na.rm=T), U_mOPV2 = sum(U_mOPV2, na.rm=T))
 
@@ -728,14 +811,13 @@ ggplot(sias_figure, aes(x = quarter, fill = source, color = source)) +
   geom_col(aes(y = U_mOPV2_sum*1e6), position = position_dodge2(preserve = "single")) +
   geom_point(aes(y = emergences*1e6), color = "black")
 
-# Observed VDPV2 emergences
+# Observed VDPV2 emergences by quarter
 ggplot(sias_figure, aes(x = quarter)) + 
   geom_col(aes(y = emergences, fill = source)) +
   ylab("VDPV2 Emergences") +
   theme_bw()
 
 #### Surveillance/sequencing lag ####
-
 # Import sequence lab fit (derived from IDM RA Model)
 # surveillance_sequence_lag.R
 seq_lag_fit <- read_csv("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/results/sequence_lag_fit.csv")
@@ -1035,6 +1117,20 @@ ggplot() +
   theme(legend.position = c(.7,.7))
 ggsave("figures/time to detection.png", device = "png", units = "in", width = 3, height = 3)
 
+# for poster
+ggplot() +
+  stat_function(fun = func_afp_only, aes(color = "AFP")) +
+  stat_function(fun = func_afp_es, aes(color = "AFP & ES")) +
+  scale_x_continuous(name = "Months", limits = c(0, 36), breaks = seq(0,36,6)) +
+  scale_y_continuous(name = "Density") +
+  labs(color = "Surveillance") +
+  scale_color_manual(values = c("blue", "black")) +
+  theme_bw() +
+  theme(text = element_text(size = 16)) +
+  theme(legend.text = element_text(size = 12), legend.title = element_blank()) +
+  theme(legend.position = "bottom")
+ggsave("figures/time to detection_poster.png", device = "png", units = "in", width = 2.7, height = 4)
+
 # placeholder for 7 years of post-switch data, plus 4 years of emergence risk forward
 max(data_province$period) - min(data_province$period)
 months = (7+4) * 12
@@ -1175,7 +1271,7 @@ viruses %>% filter(source == "Sabin2", index_isolate == "TRUE", seeding_date > "
 sabin_emerge <- 55 # 55 post-switch Sabin-2 emergences in AFRO
 
 # Tune alpha to match the number of observed Sabin-2 emergences observed.
-alpha = 2.37*10^-6 # Updated 10/13 for AFRO only
+alpha = 2.765*10^-6 # Updated 11/17 for AFRO only
 
 data_province <- data_province %>% 
   mutate(U_mOPV2 = Func_u(p=population_total_sum,
@@ -1227,7 +1323,7 @@ for (i in 9:ncol(tt_conv_data)){
 
 # Plot points and lines for U_d by period
 ggplot() +
-  geom_vline(xintercept = 2023.750, size = 1) +
+  geom_vline(xintercept = 2023.833, size = 1) +
   geom_vline(xintercept = 2021.25, color = "red", alpha = 0.25, size = 1) +
   geom_line(data = daily_U_conv, aes(x = period, y = U_mOPV2, color = source), size = 1) +
   # geom_point(data = daily_U_conv, aes(x = period, y = U_mOPV2, color = source), size = 1) +
@@ -1243,7 +1339,7 @@ ggplot() +
 # Calculate cdf before defined dates
 daily_U_conv %>% 
   # filter(period <= 2023.583) %>%
-  filter(period <= 2023.750) %>%
+  # filter(period <= 2023.833) %>%
   # filter(period > 2023.750) %>%
   # filter(period >= 2020, period < 2021) %>%
   # filter(period >= 2021, period < 2022) %>%
@@ -1297,7 +1393,7 @@ temp <- left_join(daily_U_conv, viruses_count_period_region %>%
                     filter(region_who_code %in% c("AFRO")), by = c("period", "source"))
 temp[is.na(temp$emergences), "emergences"] <- 0
 temp <- temp %>% ungroup() %>% group_by(source) %>% arrange(period) %>% mutate(emergences_cumsum = cumsum(emergences))
-temp[temp$period > 2023.75, c("emergences", "emergences_cumsum")] <- NA
+temp[temp$period > 2023.833, c("emergences", "emergences_cumsum")] <- NA
 temp <- temp %>% 
   select(c("period", "source", "U_mOPV2_cumsum", "emergences_cumsum")) %>%
   pivot_longer(cols = !c("period", "source"))
@@ -1305,7 +1401,7 @@ temp <- temp %>% filter(!(source %in%  c("Sabin2") & name %in% c("U_mOPV2_cumsum
 
 fig_cum_emergences <- 
   ggplot() +
-    geom_vline(xintercept = 2023.750, alpha = 0.25, size = 1) +
+    geom_vline(xintercept = 2023.833, alpha = 0.25, size = 1) +
     geom_vline(xintercept = 2021.25, color = "red", alpha = 0.25, size = 1) +
     geom_line(data = temp, aes(x = period, y = value, color = source, linetype = name), size = 1) +
     theme_bw() +
@@ -1318,6 +1414,26 @@ fig_cum_emergences <-
                      cols = unit(5, "in")) +
     scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
 ggsave(plot = fig_cum_emergences,"figures/Cumulative Emergences AFRO.png", device = "png", units = "in", width = 7, height = 5)
+
+# for poster
+ggplot() +
+  geom_vline(xintercept = 2023.833, alpha = 0.25, size = 1) +
+  geom_vline(xintercept = 2021.25, color = "red", alpha = 0.25, size = 1) +
+  geom_line(data = temp, aes(x = period, y = value, color = source, linetype = name), size = 1) +
+  theme_bw() +
+  ylab("Cumulative cVDPV2\nEmergences in AFR") +
+  scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2),
+                     labels = c("'16", "'18", "'20", "'22", "'24", "'26"),name = "") +
+  scale_linetype_discrete(name = "Emergences",
+                          labels = c("Observed", "Expected based\non Sabin 2 Rate")) +
+  # theme(legend.position = c(0.85, 0.3)) +
+  theme(text = element_text(size = 20)) +
+  # force_panelsizes(rows = unit(4, "in"),
+  #                  cols = unit(5, "in")) +
+  theme(legend.position = "none") +
+  scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
+ggsave("figures/Cumulative Emergences AFRO_poster.png", device = "png", units = "in", width = 4.5, height = 4)
+
 
 # Combined figure
 plot_layout(fig_cum_doses / fig_cum_emergences)
