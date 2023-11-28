@@ -1331,32 +1331,137 @@ viruses %>% filter(source == "Sabin2", index_isolate == "TRUE", seeding_date > "
   summarize(count = n())
 sabin_emerge <- 55 # 55 post-switch Sabin-2 emergences in AFRO
 
-# Begin with default alpha
+# Begin with default values
+theta_size_input = theta_size_mean
+theta_u5_input = theta_u5_mean
 alpha = 2.765*10^-6 # Updated 11/17 for AFRO only
+end_date = today()
 
-Sabin2_Expected <-
-  data_province %>%
-  filter(Region %in% c("AFRO")) %>% 
-  mutate(U_mOPV2 = Func_u(p=population_total_sum,
-                          q = immunity_weighted,
-                          alpha = alpha)) %>% # calculate total emergences due to sabin2
-  Func_daily_U_conv() %>%
-  Func_cdf_by_date("2023-11-17", source = c("Sabin2")) %>% .[,2] # calculate emergences expected by date
+# Wrapper function
+Func_wrapper <- function(
+    data_province,
+    alpha,
+    theta_size_input,
+    theta_u5_input,
+    end_date = today(),
+    sabin_emerge_input = sabin_emerge,
+    fast_input = T
+){
+  # calculate total emergences due to sabin2 by date
+  Sabin2_Expected <-
+    data_province %>%
+    filter(source %in% c("Sabin2")) %>%
+    filter(Region %in% c("AFRO")) %>% 
+    mutate(U_mOPV2 = Func_u(p=population_total_sum,
+                            q = immunity_weighted,
+                            alpha = alpha,
+                            theta_size = theta_size_input,
+                            theta_u5 = theta_u5_input)) %>% 
+    Func_daily_U_conv() %>%
+    Func_cdf_by_date(end_date, source = c("Sabin2")) %>% .[,2]
   
-# calculate difference between observed and expected
-delta = sabin_emerge / Sabin2_Expected
+  # calculate difference between observed and expected
+  delta = sabin_emerge_input / Sabin2_Expected
+  
+  # adjust alpha
+  alpha_new = as.numeric(alpha*delta)
+  
+  # Run with new alpha to calculate nOPV2 expectation
+  if (fast_input == T){
+    daily_U_conv <-
+      data_province %>%
+      filter(Region %in% c("AFRO")) %>% 
+      filter(source %in% c("nOPV2")) %>% # to speed it up, only run for nOPV2
+      mutate(U_mOPV2 = Func_u(p=population_total_sum,
+                              q = immunity_weighted,
+                              alpha = alpha_new,
+                              theta_size = theta_size_input,
+                              theta_u5 = theta_u5_input)) %>% # calculate total emergences due to sabin2
+      Func_daily_U_conv() %>% filter(source %in% c("nOPV2"))
+  } else {
+    daily_U_conv <-
+      data_province %>%
+      filter(Region %in% c("AFRO")) %>% 
+      mutate(U_mOPV2 = Func_u(p=population_total_sum,
+                              q = immunity_weighted,
+                              alpha = alpha_new,
+                              theta_size = theta_size_input,
+                              theta_u5 = theta_u5_input)) %>% # calculate total emergences due to sabin2
+      Func_daily_U_conv()
+  }
+  
+  daily_U_conv$alpha <- alpha_new
+  daily_U_conv$theta_size <- theta_size_input
+  daily_U_conv$theta_u5 <- theta_u5_input
 
-# adjust alpha
-alpha_new = as.numeric(alpha*delta)
+  return(daily_U_conv)
+}
 
-# Run new alpha
-data_province %>%
-  filter(Region %in% c("AFRO")) %>% 
-  mutate(U_mOPV2 = Func_u(p=population_total_sum,
-                          q = immunity_weighted,
-                          alpha = alpha_new)) %>% # calculate total emergences due to sabin2
-  Func_daily_U_conv() %>%
-  Func_cdf_by_date("2023-11-17")
+daily_U_conv <- Func_wrapper(data_province,
+                             alpha,
+                             theta_size_mean,
+                             theta_u5_mean,
+                             end_date = today(),
+                             fast_input = F)
+
+# Estimate nOPV2 by date
+daily_U_conv %>%
+  Func_cdf_by_date(end_date, source_input = c("nOPV2")) %>% .[,2] %>% as.numeric()
+
+# Estimate nOPV2 total
+daily_U_conv %>%
+  Func_cdf_by_date(source_input = c("nOPV2")) %>% .[,2] %>% as.numeric()
+
+
+#### Repeat using theta posterior uncertainty ####
+load("theta_chain_mcmc_output.rda")
+head(thetachain); dim(thetachain)
+
+sample_size = 500
+sample_thetas <- thetachain[sample(1:nrow(thetachain), size = sample_size),]
+
+daily_U_conv_list <- list(daily_U_conv)
+
+for (i in 1:nrow(sample_thetas)){
+  theta_size_input <- sample_thetas[i, 2]
+  theta_u5_input <- sample_thetas[i, 1]
+  daily_U_conv_temp <- Func_wrapper(data_province,
+                               alpha,
+                               theta_size_input,
+                               theta_u5_input,
+                               end_date = today())
+  
+  daily_U_conv_temp$iteration = i
+  
+  daily_U_conv_list <- append(daily_U_conv_list, list(daily_U_conv_temp))
+  cat(i,"\n")
+}
+
+# Estimate nOPV2 by date
+daily_U_conv_list %>% 
+  bind_rows() %>%
+  group_by(iteration) %>%
+  mutate(U_mOPV2_cumsum = cumsum(U_mOPV2)) %>%
+  # filter(period == 2023.833) %>%
+  filter(period == 2027.25) %>%
+  ungroup() %>%
+  summarize(mean = mean(U_mOPV2_cumsum),
+            median = median(U_mOPV2_cumsum),
+            mean = mean(U_mOPV2_cumsum),
+            upper = quantile(U_mOPV2_cumsum, 0.975),
+            lower = quantile(U_mOPV2_cumsum, 0.025))
+
+# Create theta uncertainty bounds for novel expectation
+bounds <-
+  daily_U_conv_list %>% 
+  bind_rows() %>%
+  filter(source == c("nOPV2")) %>%
+  group_by(iteration) %>%
+  mutate(U_mOPV2_cumsum = cumsum(U_mOPV2)) %>%
+  ungroup() %>%
+  group_by(period) %>%
+  summarize(lower = quantile(U_mOPV2_cumsum, 0.025),
+            upper = quantile(U_mOPV2_cumsum, 0.975))
 
 #### Plot daily_U_conv data ####
 # Plot points and lines for U_d by period
@@ -1369,32 +1474,6 @@ ggplot() +
   theme_bw() +
   ylab("Expected cVDPV2 Emergences\n(Assuming Seeding at mOPV2 Rate)") +
   xlab("Month") +
-  # scale_y_continuous(limits = c(0, 8)) +
-  scale_shape_manual(values = c(19,1)) +
-  theme(legend.position = c(0.85, 0.8)) +
-  scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
-
-# Convert to quarterly figure
-daily_U_conv$year <- floor(daily_U_conv$period)
-daily_U_conv$quarter <- Func_period_to_quarter(daily_U_conv$period)
-daily_U_conv$year.quarter <- daily_U_conv$year + daily_U_conv$quarter
-viruses_count_period$year <- floor(viruses_count_period$period)
-viruses_count_period$quarter <- Func_period_to_quarter(viruses_count_period$period)
-viruses_count_period$year.quarter <- viruses_count_period$year + viruses_count_period$quarter
-viruses_count_quarter <- viruses_count_period %>%
-  group_by(source, year.quarter) %>%
-  summarize(emergences = sum(emergences))
-
-# Plot points and lines for U_d by quarter
-ggplot() +
-  geom_vline(xintercept = 2023.750, size = 1) +
-  geom_vline(xintercept = 2021.25, color = "red", alpha = 0.25, size = 1) +
-  geom_line(data = daily_U_conv, aes(x = year.quarter, y = U_mOPV2, color = source), size = 1) +
-  # geom_point(data = daily_U_conv, aes(x = period, y = U_mOPV2, color = source), size = 1) +
-  geom_point(data = viruses_count_quarter %>% filter(emergences > 0), aes(x = year.quarter, y = emergences, color = source, shape = source), size = 2) +
-  theme_bw() +
-  ylab("Expected cVDPV2 Emergences\n(Assuming Seeding at mOPV2 Rate)") +
-  xlab("Quarter") +
   # scale_y_continuous(limits = c(0, 8)) +
   scale_shape_manual(values = c(19,1)) +
   theme(legend.position = c(0.85, 0.8)) +
@@ -1427,10 +1506,10 @@ temp <- temp %>% filter(!(source %in%  c("Sabin2") & name %in% c("U_mOPV2_cumsum
 
 fig_cum_emergences <- 
   ggplot() +
-    geom_vline(xintercept = 2023.833, alpha = 0.25, size = 1) +
-    geom_vline(xintercept = 2021.25, color = "red", alpha = 0.25, size = 1) +
+    geom_ribbon(data = bounds, aes(x = period, ymin = lower, ymax = upper), fill = "pink", size = 1, linetype = "dashed") +
     geom_line(data = temp, aes(x = period, y = value, color = source, linetype = name), size = 1) +
-    theme_bw() +
+    geom_vline(xintercept = 2023.833, alpha = 0.25, size = 1) +
+    geom_vline(xintercept = 2021.25, color = "red", alpha = 0.25, size = 1) +theme_bw() +
     ylab("Cumulative cVDPV2 Emergences in\nthe African Region") +
     scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
     scale_linetype_discrete(name = "Emergences",
@@ -1465,7 +1544,7 @@ ggsave("figures/Cumulative Emergences AFRO_poster.png", device = "png", units = 
 plot_layout(fig_cum_doses / fig_cum_emergences)
 ggsave("figures/Cumulative AFRO.png", device = "png", units = "in", width = 7, height = 10)
 
-#### Repeat, but only for DRC ####
+#### Sensitivity analysis: DRC Only ####
 polis_pops %>% filter(adm0_name == "DEMOCRATIC REPUBLIC OF THE CONGO") %>% group_by(source)%>% filter(start_date < today()) %>% summarize(sum = sum(target_pop))
 
 viruses_count_period_DRC <- viruses %>% 
@@ -1546,7 +1625,7 @@ daily_U_conv %>%
   group_by(source) %>%
   summarize(sum(U_mOPV2))
 
-#### Repeat, but only for Nigeria ####
+#### Sensitivity analysis: Nigeria Only ####
 polis_pops %>% filter(adm0_name == "NIGERIA") %>% group_by(source)%>% filter(start_date < today()) %>% summarize(sum = sum(target_pop))
 
 viruses_count_period_NIE <- viruses %>% 
@@ -1716,10 +1795,6 @@ daily_U_conv %>%
   group_by(source) %>%
   summarize(sum(U_mOPV2))
 
-
-#### Estimate uncertainty ####
-expand_grid(count = c(43, 66)) %>% 
-  +   mutate(lower = qpois(0.025,count), upper = qpois(0.975,count))
 
 #### Apply time-to-linkage to any known aVDPV2-n's ####
 viruses %>% 
