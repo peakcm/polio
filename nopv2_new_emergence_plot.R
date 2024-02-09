@@ -2,16 +2,16 @@ library(PolisAPI)
 library(lubridate)
 library(tidyverse)
 # Vector of emergence groups linked to nOPV2
-n<-c("RDC-TAN-2","RDC-KOR-1","RDC-SKV-1","CAF-KEM-1","NIE-KBS-1","CAF-BNG-3","RDC-HKA-2", "EGY-NOR-1", "BOT-FRA-1")
+n<-c("RDC-SKV-1", "RDC-TAN-2", "RDC-KOR-1",
+      "CAF-KEM-1", "NIE-KBS-1", "RDC-HKA-2",
+      "CAF-BNG-3", "BOT-FRA-1", "EGY-NOR-1",
+      "CAE-EXT-1", "ZIM-HRE-1", "NIE-KTS-1",
+      "MOZ-MAN-1") # holding out RSS-WEQ-1 until confirmed
+
 
 set_token("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/data_local/token.txt")
 viruses_raw = get_polis_virus(min_date = '2014-01-01',virus_id = 4)
 viruses_raw_save<-viruses_raw
-
-c("EGY/N. /50/23/305","EGY/937/2023") %in% viruses_raw$epid 
-viruses_raw[viruses_raw$epid %in% c("EGY/N. /50/23/305","EGY/937/2023"), "vdpv_emergence_group_name"] <- "EGY-NOR-1"
-viruses_raw[viruses_raw$epid %in% c("EGY/N. /50/23/305","EGY/937/2023"), "vdpv_classification_name"] <- "Circulating"
-"EGY-NOR-1" %in% unique(viruses_raw$vdpv_emergence_group_name)
 
 viruses_raw$year<-year(viruses_raw$virus_date)
 viruses_raw$half_year<-floor_date(as.Date(viruses_raw$virus_date),"6 months")
@@ -21,8 +21,6 @@ viruses_raw$vacc<-ifelse(viruses_raw$vdpv_emergence_group_name%in%n,"nOPV2",'Sab
 a<-mutate(group_by(viruses_raw[order(viruses_raw$virus_date),],vdpv_emergence_group_name,vacc),rank=1:n())%>%filter(rank<4)%>%summarise(origin=mean(origin,na.rm=T))
 a$year<-year(a$origin)
 a$half_year<-floor_date(as.Date(a$origin),"6 months")
-
-
 
 full <- "C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub"
 path_to_polis_data<-"/polio-immunity-mapping/results"
@@ -80,8 +78,8 @@ x<-summarise(group_by(x[x$half_year>as.Date("2016-01-01"),],half_year,VaccineTyp
 
 summarise(group_by(as_tibble(viruses_raw),vdpv_emergence_group_name,vacc),half_year=min(half_year))%>%filter(half_year==as.Date("2023-01-01"))
 
-exc<-"BOT-FRA-1"
-# exc<-c("CAF-BNG-3","RDC-HKA-2")
+# exc<-c("NIE-KTS-1","MOZ-NPL-2", "RSS-WEQ-1")
+exc <- c("")
 y<-summarise(group_by(summarise(group_by(as_tibble(viruses_raw%>%filter(!vdpv_emergence_group_name%in%exc)),vdpv_emergence_group_name,vacc),half_year=min(half_year)),half_year,vacc),new_emerg=n())
 y<-merge(cbind.data.frame(vacc="nOPV2",half_year=unique(viruses_raw$half_year[viruses_raw$half_year>=as.Date("2021-01-01")])),y,all=T)
 y$y<-y$new_emerg
@@ -92,9 +90,9 @@ p<-ggplot()+geom_col(data=x,aes(x=half_year+365/4,y=n/1e6,fill=VaccineType))+
   geom_line(data=y,aes(x=half_year+365/4,y=12*y,color=vacc))+
   # geom_label(data=y,aes(x=half_year+365/4,y=12*(y+ifelse(half_year=="2023-01-01",ifelse(vacc=="nOPV2",-1,0.9),0.9)),label=y,color=vacc),size=2)+
   geom_label(data=y,aes(x=half_year+365/4,y=12*(y+0.9),label=y,color=vacc),size=2)+
-  labs(x="",y="Estimated doses (millions)",linetype="",fill="Doses",color="Linked to",caption="*Data as of 15 Sept 2023.")+
+  labs(x="",y="Estimated doses (millions)",linetype="",fill="Doses",color="Linked to",caption="*Data as of 6 Feb 2024.")+
   theme(legend.position=c(0.1,0.68))+scale_x_date(date_breaks="year",date_labels="%b %y")+
   scale_fill_manual(values=c("dark blue","orange","gray"))+scale_color_manual(values=c("blue","red"))+scale_linetype_manual(values=c(1,2))+
   scale_y_continuous(sec.axis=sec_axis(trans=~./12,name="New emergences (date of detection)"))
 p
-ggsave("nopv2_new_emergence_plot_alt.png",p,width=6,height=4)
+ggsave("figures/nopv2_new_emergence_plot_alt.png",p,width=6,height=4)
