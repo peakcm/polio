@@ -6,7 +6,7 @@ n<-c("RDC-SKV-1", "RDC-TAN-2", "RDC-KOR-1",
       "CAF-KEM-1", "NIE-KBS-1", "RDC-HKA-2",
       "CAF-BNG-3", "BOT-FRA-1", "EGY-NOR-1",
       "CAE-EXT-1", "ZIM-HRE-1", "NIE-KTS-1",
-      "MOZ-MAN-1") # holding out RSS-WEQ-1 until confirmed
+      "MOZ-MAN-1", "RSS-WEQ-1") 
 
 
 set_token("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/data_local/token.txt")
@@ -85,14 +85,17 @@ y<-merge(cbind.data.frame(vacc="nOPV2",half_year=unique(viruses_raw$half_year[vi
 y$y<-y$new_emerg
 y$y[is.na(y$y)]<-0
 y<-y[y$half_year>as.Date("2016-01-01"),]
-p<-ggplot()+geom_col(data=x,aes(x=half_year+365/4,y=n/1e6,fill=VaccineType))+
+p<-ggplot()+geom_col(data=x,aes(x=half_year+365/4,y=n/1e6,fill=VaccineType=="nOPV2"))+
   geom_point(data=y,aes(x=half_year+365/4,y=12*y,color=vacc))+
-  geom_line(data=y,aes(x=half_year+365/4,y=12*y,color=vacc))+
+  geom_line(data=y,aes(x=half_year+365/4,y=12*y,group=vacc),color = "black", linewidth = 2.5)+
+  geom_line(data=y,aes(x=half_year+365/4,y=12*y,color=vacc), linewidth = 2)+
   # geom_label(data=y,aes(x=half_year+365/4,y=12*(y+ifelse(half_year=="2023-01-01",ifelse(vacc=="nOPV2",-1,0.9),0.9)),label=y,color=vacc),size=2)+
-  geom_label(data=y,aes(x=half_year+365/4,y=12*(y+0.9),label=y,color=vacc),size=2)+
-  labs(x="",y="Estimated doses (millions)",linetype="",fill="Doses",color="Linked to",caption="*Data as of 6 Feb 2024.")+
+  geom_label(data=y,aes(x=half_year+365/4,y=12*(y+0.9),label=y),color = "black", size=2)+
+  labs(x="",y="Estimated doses (millions)",linetype="",fill="Doses",color="Linked to",caption="*Data as of 12 Apr 2024.")+
   theme(legend.position=c(0.1,0.68))+scale_x_date(date_breaks="year",date_labels="%b %y")+
-  scale_fill_manual(values=c("dark blue","orange","gray"))+scale_color_manual(values=c("blue","red"))+scale_linetype_manual(values=c(1,2))+
+  scale_fill_manual(labels=c("Sabin2", "nOPV2"),values=c("#00BFC4","#F8766D"))+
+  scale_color_manual(values=c("#F8766D","#00BFC4"))+
+  # scale_linetype_manual(values=c(1,2))+
   scale_y_continuous(sec.axis=sec_axis(trans=~./12,name="New emergences (date of detection)"))
 p
 ggsave("figures/nopv2_new_emergence_plot_alt.png",p,width=6,height=4)
