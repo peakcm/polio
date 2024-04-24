@@ -117,8 +117,8 @@ polis_pops %>%
   select(parentactivitycode) %>% unique()
 
 # Add pop to campaigns missing it
-eth_rows <- polis_pops %>% filter(parentactivitycode == "ETH-2021-003") %>% nrow()
-polis_pops[polis_pops$parentactivitycode == "ETH-2021-003", "target_pop"] <- 16712725/eth_rows
+# eth_rows <- polis_pops %>% filter(parentactivitycode == "ETH-2021-003") %>% nrow()
+# polis_pops[polis_pops$parentactivitycode == "ETH-2021-003", "target_pop"] <- 16712725/eth_rows
 
 # !!!!!!! MANUAL !!!!!! Distribute 12m to Indonesia equally across districts
 indo_rows <- polis_pops %>% filter(vaccinetype=="nOPV2", adm0_name == "INDONESIA") %>% nrow()
@@ -132,10 +132,10 @@ polis_pops[polis_pops$adm0_name == "PHILIPPINES" & polis_pops$vaccinetype=="mOPV
 mys_rows <- polis_pops %>% filter(vaccinetype=="mOPV2", adm0_name == "MALAYSIA") %>% nrow()
 polis_pops[polis_pops$adm0_name == "MALAYSIA" & polis_pops$vaccinetype=="mOPV2", "target_pop"] <- 1549306/mys_rows
 
-# Clean data
-polis_pops <- polis_pops %>% 
-  # filter(start_date < today()) %>%
-  filter(start_date <= "2023-12-31") #Focus on just EUL era
+# Focus on just EUL era
+# polis_pops <- polis_pops %>% 
+#   # filter(start_date < today()) %>%
+#   filter(start_date <= "2023-12-31") 
 # View(polis_pops %>% filter(vaccinetype == "nOPV2", status == "Planned"))
 
 # Gut check nOPV2 usage
@@ -144,6 +144,7 @@ polis_pops %>%
   summarize(pop = sum(target_pop, na.rm=T))
 polis_pops %>% 
   filter(vaccinetype == "nOPV2") %>%
+  filter(start_date < "2024-01-01") %>%
   summarize(pop = sum(target_pop, na.rm=T))
 
 # vaccine usage post-switch
@@ -228,24 +229,6 @@ sia_target_box <- polis_pops %>%
   guides(color="none")
 ggsave(plot = sia_target_box, "figures/target pop.png", device = "png", units = "in", width = 3, height = 3)
 
-# SIA target pop box plot (for poster)
-sia_target_box_poster <- polis_pops %>% 
-  group_by(source, parentactivitycode) %>% 
-  # filter(region %in% c("AFRO", "EMRO", "EURO")) %>%
-  filter(region %in% c("AFRO")) %>%
-  filter(start_date >= "2016-05-01") %>%
-  summarize(sum = sum(target_pop, na.rm=T)) %>%
-  ungroup() %>%
-  ggplot() +
-  geom_boxplot(aes(x = source, y = sum/1e6, color = source)) +
-  scale_y_log10(name = "SIA Target Population (Million)", 
-                breaks = 10^(2-seq(1,5)),
-                minor_breaks = .5*10^(2-seq(1,5))) +
-  xlab("") +
-  theme_bw() +
-  guides(color="none")
-ggsave(plot = sia_target_box_poster, "figures/target pop_poster.png", device = "png", units = "in", width = 2, height = 3)
-
 # Simplify fields
 polis_pops_full <- polis_pops
 polis_pops <- polis_pops %>% 
@@ -282,32 +265,6 @@ fig_cum_doses <-
                      cols = unit(5, "in"))
 ggsave(plot = fig_cum_doses, "figures/Cumulative Doses AFRO.png", device = "png", units = "in", width = 7, height = 3)
 
-# Plot cumulative number of doses (For poster)
-fig_cum_doses_poster <- 
-  polis_pops %>%
-  filter(!is.na(target_pop)) %>%
-  filter(region %in% c("AFRO")) %>%
-  ungroup() %>%
-  group_by(source, period) %>%
-  reframe(period = unique(period),
-          doses = sum(target_pop)) %>%
-  group_by(source) %>%
-  arrange(period) %>%
-  reframe(period = unique(period),
-          doses_cumsum = cumsum(doses)) %>%
-  ggplot() +
-  geom_vline(xintercept = 2024.000, alpha = 0.25, size = 1) +
-  geom_vline(xintercept = 2021.167, alpha = 0.25, color = "red", size = 1) +
-  geom_line(aes(x = period, y = doses_cumsum/1e6, color = source), size = 1) +
-  theme_bw() +
-  theme(text = element_text(size = 20)) +
-  scale_x_continuous(limits = c(2016.0, 2027), breaks = seq(2016, 2027, 2), 
-                     labels = c("'16", "'18", "'20", "'22", "'24", "'26"), name = "") +
-  scale_y_continuous(name = "Cumulative Doses\nin AFR (Million)") +
-  scale_color_discrete(name = "Vaccine Type") +
-  theme(legend.position='none')
-ggsave(plot = fig_cum_doses_poster, "figures/Cumulative Doses AFRO_poster.png", device = "png", units = "in", width = 4.5, height = 4)
-
 # Plot quarterly number of doses (for paper)
 polis_pops %>%
   filter(!is.na(target_pop)) %>%
@@ -320,32 +277,11 @@ polis_pops %>%
   ggplot() +
   geom_col(aes(x = quarter, y = doses/1e6, fill = region), size = 1) +
   theme_bw() +
-  scale_x_continuous(limits = c(2016.0, 2024), breaks = seq(2016, 2024, 2), name = "") +
+  scale_x_continuous(limits = c(2016.0, 2024.5), breaks = seq(2016, 2024, 2), name = "") +
   scale_y_continuous(name = "Quarterly Doses\n(Million)") +
   scale_fill_discrete(name = "Region") +
   facet_grid(source~.) 
 ggsave("figures/Quarterly Doses.png", device = "png", units = "in", width = 7, height = 3)
-
-# Plot quarterly number of doses (for poster)
-polis_pops %>%
-  filter(!is.na(target_pop)) %>%
-  ungroup() %>%
-  # mutate(year = floor(period)) %>%
-  group_by(source, quarter, region) %>%
-  reframe(region = unique(region),
-          quarter = unique(quarter),
-          doses = sum(target_pop)) %>%
-  ggplot() +
-  geom_col(aes(x = quarter, y = doses/1e6, fill = region), size = 1) +
-  theme_bw() +
-  theme(text = element_text(size = 20)) +
-  scale_x_continuous(limits = c(2016.0, 2024), breaks = seq(2016, 2024, 2),
-                     labels = c("'16", "'18", "'20", "'22", "'24"), name = "") +
-  scale_y_continuous(name = "Quarterly Doses\n(Million)") +
-  scale_fill_discrete(name = "Region") +
-  # theme(legend.position = "none") +
-  facet_grid(source~.) 
-ggsave("figures/Quarterly Doses_poster.png", device = "png", units = "in", width = 6.5, height = 3)
 
 #### POLIS Virus data ####
 token = readLines("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/data_local/token.txt")[1]
@@ -452,21 +388,6 @@ viruses %>% filter(virus_type_name == "cVDPV2", period > 2021,
   ylab("Monthly cVDPV2 Cases")
 
 sias_figure <- left_join(sias_figure, viruses_count_quarter, by = c("quarter", "source"))
-
-# Description of emergences (for paper)
-viruses %>%
-  filter(index_isolate == TRUE, virus_date > "2016-05-01") %>% 
-  mutate(seeded_post_switch = if_else(seeding_date > "2016-05-01","post", "pre")) %>%
-  group_by(seeded_post_switch, source) %>%
-  reframe(count = n())
-viruses %>%
-  filter(index_isolate == TRUE, seeding_date > "2016-05-01") %>% 
-  group_by(region_who_code, source) %>%
-  reframe(count = n())
-viruses %>%
-  filter(index_isolate == TRUE, seeding_date > "2016-05-01") %>% 
-  group_by(region_who_code, source, admin0name) %>%
-  reframe(count = n())
 
 #### Immunity mapper data U5 ####
 # Run immunity_calc_eag.R to produce new U5 immunity estimates to use here
@@ -683,6 +604,7 @@ temp %>%
 wilcox.test(temp$immunity_weighted ~ temp$source,
             exact = FALSE)
 
+# Immunity boxplot (for paper)
 sia_immunity_box <- temp %>%
   ggplot(aes(x = source, y = immunity_weighted, color = source)) +
   # geom_violin() +
@@ -693,20 +615,6 @@ sia_immunity_box <- temp %>%
   ylab("Pre-Campaign Type-2 Immunity") +
   xlab("")
 ggsave(plot = sia_immunity_box, "figures/immunity.png", device = "png", units = "in", width = 3, height = 3)
-
-# Immunity boxplot (for poster)
-sia_immunity_box_poster <- temp %>%
-  ggplot(aes(x = source, y = immunity_weighted, color = source)) +
-  # geom_violin() +
-  geom_boxplot() +
-  # geom_jitter(alpha = 0.5) +
-  theme_bw() +
-  # theme(text = element_text(size = 20)) +
-  guides(color = "none") +
-  ylab("Pre-Campaign Type-2 Immunity") +
-  xlab("")
-ggsave(plot = sia_immunity_box_poster, "figures/immunity_poster.png", device = "png", units = "in", width = 2, height = 3)
-
 
 # SIA target and immunity boxplots (For paper)
 plot_layout(sia_target_box / sia_immunity_box)
@@ -789,16 +697,20 @@ ggplot(temp2 %>% filter(region == "AFRO"), aes(color = source, y = reorder(adm0_
   theme_bw()
 ggsave("figures/doses by country_afro.png", device = "png", units = "in", width = 6, height = 6)
 
+#### Crude per-dose emergence expectation analysis ####
+
 # Regional dosage usage (for paper table 1)
 polis_pops %>%
   group_by(region) %>%
   filter(target_pop > 0) %>%
   filter(period >= 2016.417) %>%
-  filter(period < 2024) %>%
+  # filter(period < 2024) %>%
+  # filter(period < 2024.417) %>%
   group_by(region, source) %>%
   summarize(target_pop = sum(target_pop, na.rm=T)) 
 
-View(polis_pops %>% filter(region %in% c("WPRO"), start_date > "2016-05-01"))
+# View(polis_pops %>% filter(region %in% c("WPRO"), start_date >= "2016-05-01"))
+View(polis_pops %>% filter(region %in% c("SEARO"), start_date >= "2016-05-01"))
 
 polis_pops %>%
   filter(adm0_name %in% c("NIGERIA", "DEMOCRATIC REPUBLIC OF THE CONGO",
@@ -810,7 +722,103 @@ polis_pops %>%
   group_by(adm0_name, source) %>%
   summarize(target_pop = sum(target_pop, na.rm=T)) 
 
-#### Function to calculate expected count of emergence from campaign ####
+# Description of emergences (for table 1)
+viruses %>%
+  filter(index_isolate == TRUE, virus_date > "2016-05-01") %>% 
+  mutate(seeded_post_switch = if_else(seeding_date > "2016-05-01","post", "pre")) %>%
+  group_by(seeded_post_switch, source) %>%
+  reframe(count = n())
+viruses %>%
+  filter(index_isolate == TRUE, seeding_date > "2016-05-01") %>% 
+  group_by(region_who_code, source) %>%
+  reframe(count = n())
+viruses %>%
+  filter(index_isolate == TRUE, seeding_date > "2016-05-01") %>% 
+  group_by(region_who_code, source, admin0name) %>%
+  reframe(count = n())
+
+# Calculate crude regional per-dose emergence rate
+for (i in c("AFRO", "EMRO", "EURO", "SEARO", "WPRO")){
+  sabin2_doses <- polis_pops %>% 
+    filter(region == i) %>%
+    filter(source == "Sabin2") %>%
+    filter(period >= 2016.417) %>%
+    summarize(target_pop = sum(target_pop, na.rm=T)) %>% 
+    as.numeric()
+  
+  nOPV2_doses <- polis_pops %>% 
+    filter(region == i) %>%
+    filter(source == "nOPV2") %>%
+    filter(period >= 2016.417) %>%
+    summarize(target_pop = sum(target_pop, na.rm=T)) %>% 
+    as.numeric()
+  
+  sabin2_emergences <- viruses %>%
+    filter(source == "Sabin2") %>%
+    filter(region_who_code == i) %>%
+    filter(index_isolate == TRUE, seeding_date > "2016-05-01") %>% 
+    summarize(count = n()) %>%
+    summarize(sum = sum(count)) %>% 
+    as.numeric()
+  
+  nOPV2_emergences <- viruses %>%
+    filter(source == "nOPV2") %>%
+    filter(region_who_code == i) %>%
+    filter(index_isolate == TRUE, seeding_date > "2016-05-01") %>% 
+    summarize(count = n()) %>%
+    summarize(sum = sum(count)) %>% 
+    as.numeric()
+  
+  cat("In ", i, "\n",
+      sabin2_doses, " Sabin2 doses\n", 
+      nOPV2_doses, " nOPV2 doses\n",
+      sabin2_emergences, " Sabin2 emergences\n",
+      nOPV2_emergences, " nOPV2 emergences\n",
+      sabin2_emergences/sabin2_doses*10000000, " Sabin2 emergences per million doses\n",
+      nOPV2_emergences/nOPV2_doses*10000000, " nOPV2 emergences per million doses\n\n")
+}
+
+# Manual check of data (SEARO)
+View(polis_pops %>% filter(region %in% c("SEARO"), start_date >= "2016-05-01"))
+viruses %>% filter(vdpv_emergence_group_name == "INO-ACE-1") %>% View()
+# Post-switch SIAs in Indonesia were in response to the emergence, not the source.
+
+# Manual check of data (EURO)
+View(polis_pops %>% filter(region %in% c("EURO"), start_date >= "2016-05-01"))
+viruses %>% filter(vdpv_emergence_group_name == "IUUC-2022") %>% View()
+# Unsure if originally UK or Israel, and unsure originating SIA (heard Pakistan at some point?)
+
+# Manual check of data (WPRO)
+View(polis_pops %>% filter(region %in% c("WPRO"), start_date >= "2016-05-01"))
+viruses %>% filter(vdpv_emergence_group_name == "CHN-SIC-1 ") %>% View()
+# SIAs in Malaysia and Philippines in 2019-2020 inconsistent with emergence in China in 2018 with 13 nt changes. Possible pre-switch? 
+
+# Estimate global crude lambda 
+sabin2_emergences = viruses %>%
+  filter(source == "Sabin2") %>%
+  filter(index_isolate == TRUE, seeding_date > "2016-05-01") %>% 
+  summarize(count = n()) %>%
+  summarize(sum = sum(count)) %>% 
+  as.numeric()
+
+sabin2_doses <- polis_pops %>% 
+  filter(source == "Sabin2") %>%
+  filter(period >= 2016.417) %>%
+  summarize(target_pop = sum(target_pop, na.rm=T)) %>% 
+  as.numeric()
+
+nOPV2_doses <- polis_pops %>% 
+  filter(source == "nOPV2") %>%
+  filter(period >= 2016.417) %>%
+  summarize(target_pop = sum(target_pop, na.rm=T)) %>% 
+  as.numeric()
+
+# Estimated emergences based on nOPV2 doses 
+crude_lambda = sabin2_emergences/sabin2_doses
+qpois(c(0.025, 0.5, 0.975), crude_lambda * nOPV2_doses)
+
+
+#### AFR: Function to calculate expected count of emergence from campaign ####
 theta_size_mean  <- 0.795 
 theta_size_lower <- 0.503
 theta_size_upper <- 1.10
@@ -823,8 +831,12 @@ Func_u = function(p,  #p is the total population (not U-5)
                   q,  #q is the immunity in children under 5-years
                   alpha = 2.025*10^-6, #alpha is the scaling factor for total number of observed emergences (see Supplemental section 4 in Gray 2022) 
                   theta_size = theta_size_mean, 
-                  theta_u5 = theta_u5_mean){ 
-  alpha * exp((theta_size-1)*log(p) + theta_u5*q) * p
+                  theta_u5 = theta_u5_mean,
+                  crude = FALSE,
+                  lambda = crude_lambda){ 
+  if (crude == FALSE){
+    alpha * exp((theta_size-1)*log(p) + theta_u5*q) * p
+  } else (p*0.17 * lambda)
 }
 alpha = 2.16*10^-6 # Initial
 
@@ -833,6 +845,7 @@ Func_u(1e6, c(.05, .5, .95), alpha) # fixed pop size, increasing immunity, shoul
 Func_u(c(1e5, 1e6, 1e7), .5, alpha) # increasing pop size, fixed immunity, should have increasing emergences
 Func_u(3e7, c(.2, .4, .6, .8)) # compare with figure 4 in Gray 2023 paper
 round(Func_u(1e6, 0.5, alpha) * 1.1, 6) == round(Func_u(1e6, 0.5, alpha*1.1), 6) # Expected number of emergences scales linearly with Alpha
+Func_u(1e6/0.17, crude = TRUE)
 
 # testing function
 data_province <- data_province %>% 
@@ -1157,6 +1170,7 @@ cumsum(afp_es) # 13 month cumsum is 97.2%
 ttd_df <- data.frame("Surveillance" = "AFP Only", "Month" = 1:length(afp_only), "Density" = afp_only)
 ttd_df <- ttd_df %>% rbind(data.frame("Surveillance" = "AFP & ES", "Month" = 1:length(afp_es), "Density" = afp_es))
 
+# for paper
 ggplot() +
   stat_function(fun = func_afp_only, aes(color = "AFP Only")) +
   stat_function(fun = func_afp_es, aes(color = "AFP & ES")) +
@@ -1167,20 +1181,6 @@ ggplot() +
   theme_bw() +
   theme(legend.position = c(.7,.7))
 ggsave("figures/time to detection.png", device = "png", units = "in", width = 3, height = 3)
-
-# for poster
-ggplot() +
-  stat_function(fun = func_afp_only, aes(color = "AFP")) +
-  stat_function(fun = func_afp_es, aes(color = "AFP & ES")) +
-  scale_x_continuous(name = "Months", limits = c(0, 36), breaks = seq(0,36,6)) +
-  scale_y_continuous(name = "Density") +
-  labs(color = "Surveillance") +
-  scale_color_manual(values = c("blue", "black")) +
-  theme_bw() +
-  theme(text = element_text(size = 16)) +
-  theme(legend.text = element_text(size = 12), legend.title = element_blank()) +
-  theme(legend.position = "bottom")
-ggsave("figures/time to detection_poster.png", device = "png", units = "in", width = 2.7, height = 4)
 
 # placeholder for 7 years of post-switch data, plus 4 years of emergence risk forward
 max(data_province$period) - min(data_province$period)
@@ -1394,18 +1394,26 @@ Func_wrapper <- function(
     theta_u5_input,
     end_date = today(),
     sabin_emerge_input = sabin_emerge,
-    fast_input = T
+    fast_input = T,
+    crude = FALSE,
+    lambda = crude_lambda,
+    AFRO = T
 ){
+  if (AFRO == T) {
+    data_province <- data_province %>% filter(Region %in% c("AFRO"))
+  }
+  
   # calculate total emergences due to sabin2 by date
   Sabin2_Expected <-
     data_province %>%
     filter(source %in% c("Sabin2")) %>%
-    filter(Region %in% c("AFRO")) %>% 
     mutate(U_mOPV2 = Func_u(p=population_total_sum,
                             q = immunity_weighted,
                             alpha = alpha,
                             theta_size = theta_size_input,
-                            theta_u5 = theta_u5_input)) %>% 
+                            theta_u5 = theta_u5_input,
+                            crude = crude,
+                            lambda = lambda)) %>% 
     Func_daily_U_conv() 
   
   Sabin2_Expected$alpha <- alpha
@@ -1425,23 +1433,25 @@ Func_wrapper <- function(
   if (fast_input == T){
     daily_U_conv <-
       data_province %>%
-      filter(Region %in% c("AFRO")) %>% 
       filter(source %in% c("nOPV2")) %>% # to speed it up, only run for nOPV2
       mutate(U_mOPV2 = Func_u(p=population_total_sum, # calculate total emergences due to sabin2
                               q = immunity_weighted,
                               alpha = alpha_new,
                               theta_size = theta_size_input,
-                              theta_u5 = theta_u5_input)) %>% 
+                              theta_u5 = theta_u5_input,
+                              crude = crude,
+                              lambda = lambda)) %>% 
       Func_daily_U_conv() %>% filter(source %in% c("nOPV2"))
   } else {
     daily_U_conv <-
       data_province %>%
-      filter(Region %in% c("AFRO")) %>% 
       mutate(U_mOPV2 = Func_u(p=population_total_sum, # calculate total emergences due to sabin2
                               q = immunity_weighted,
                               alpha = alpha_new,
                               theta_size = theta_size_input,
-                              theta_u5 = theta_u5_input)) %>% 
+                              theta_u5 = theta_u5_input,
+                              crude = crude,
+                              lambda = lambda)) %>% 
       Func_daily_U_conv()
 
   }
@@ -1469,11 +1479,35 @@ daily_U_conv %>%
 daily_U_conv %>%
   Func_cdf_by_date(end_date, source_input = c("Sabin2")) %>% .[,2] %>% as.numeric()
 
+#### Crude analysis
+
+daily_U_conv <- Func_wrapper(data_province,
+                             alpha,
+                             theta_size_mean,
+                             theta_u5_mean,
+                             end_date = today(),
+                             fast_input = F,
+                             crude = T, 
+                             AFRO = F)
+daily_U_conv %>%
+  Func_cdf_by_date(end_date, source_input = c("Sabin2")) %>% .[,2] %>% as.numeric()
+
+daily_U_conv %>%
+  Func_cdf_by_date(source_input = c("nOPV2")) %>% .[,2] %>% as.numeric()
+
+(crude_expectation <- daily_U_conv %>%
+  Func_cdf_by_date(end_date, source_input = c("nOPV2")) %>% .[,2] %>% as.numeric())
+
+1-14/
+  qpois(c(0.025, 0.5, 0.975), crude_expectation)
+
+
+
 #### Repeat using theta posterior uncertainty ####
 load("theta_chain_mcmc_output.rda")
 head(thetachain); dim(thetachain)
 
-sample_size = 10
+sample_size = 100
 sample_thetas <- thetachain[sample(1:nrow(thetachain), size = sample_size),]
 
 daily_U_conv_list <- list(daily_U_conv)
@@ -1500,8 +1534,8 @@ daily_U_conv_list %>%
   filter(source == c("nOPV2")) %>%
   group_by(iteration) %>%
   mutate(U_mOPV2_cumsum = cumsum(U_mOPV2)) %>%
-  # filter(period == 2023.833) %>%
-  filter(period == 2027.25) %>%
+  filter(period == 2024.250) %>%
+  # filter(period == 2027.25) %>%
   ungroup() %>%
   summarize(mean = mean(U_mOPV2_cumsum),
             median = median(U_mOPV2_cumsum),
@@ -1521,7 +1555,7 @@ bounds_nOPV2 <-
   summarize(lower = quantile(U_mOPV2_cumsum, 0.025),
             upper = quantile(U_mOPV2_cumsum, 0.975))
 
-bounds_nOPV2[bounds_nOPV2$period == 2024.083,]
+bounds_nOPV2[bounds_nOPV2$period == 2024.250,]
 tail(bounds_nOPV2)
 
 # Create theta uncertainty bounds for Sabin2 expectation
@@ -1536,7 +1570,7 @@ bounds_Sabin2 <-
   summarize(lower = quantile(U_mOPV2_cumsum, 0.025),
             upper = quantile(U_mOPV2_cumsum, 0.975))
 
-bounds_Sabin2[bounds_Sabin2$period == 2024.083,]
+bounds_Sabin2[bounds_Sabin2$period == 2024.250,]
 tail(bounds_Sabin2)
 
 #### Plot daily_U_conv data ####
@@ -1574,17 +1608,18 @@ temp <- left_join(daily_U_conv, viruses_count_period_region %>%
                     filter(region_who_code %in% c("AFRO")), by = c("period", "source"))
 temp[is.na(temp$emergences), "emergences"] <- 0
 temp <- temp %>% ungroup() %>% group_by(source) %>% arrange(period) %>% mutate(emergences_cumsum = cumsum(emergences))
-temp[temp$period > 2024.167, c("emergences", "emergences_cumsum")] <- NA
+temp[temp$period > 2024.333, c("emergences", "emergences_cumsum")] <- NA
 temp <- temp %>% 
   select(c("period", "source", "U_mOPV2_cumsum", "emergences_cumsum")) %>%
   pivot_longer(cols = !c("period", "source"))
 temp <- temp %>% filter(!(source %in%  c("Sabin2") & name %in% c("U_mOPV2_cumsum")))
 
+# for paper
 fig_cum_emergences <- 
   ggplot() +
     # geom_ribbon(data = bounds, aes(x = period, ymin = lower, ymax = upper), fill = "pink", alpha = 0.5, size = 1, linetype = "dashed") +
       geom_ribbon(data = bounds_nOPV2, aes(x = period, ymin = lower, ymax = upper), fill = "pink", alpha = 0.5, size = 1, linetype = "dashed") +
-      geom_ribbon(data = bounds_Sabin2, aes(x = period, ymin = lower, ymax = upper), fill = "lightblue", alpha = 0.5, size = 1, linetype = "dashed") +
+      # geom_ribbon(data = bounds_Sabin2, aes(x = period, ymin = lower, ymax = upper), fill = "lightblue", alpha = 0.5, size = 1, linetype = "dashed") +
     geom_line(data = temp, aes(x = period, y = value, color = source, linetype = name), size = 1) +
     geom_vline(xintercept = 2024, alpha = 0.25, size = 1) +
     geom_vline(xintercept = 2021.25, color = "red", alpha = 0.25, size = 1) + theme_bw() +
@@ -1598,29 +1633,14 @@ fig_cum_emergences <-
     scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
 ggsave(plot = fig_cum_emergences,"figures/Cumulative Emergences AFRO.png", device = "png", units = "in", width = 7, height = 5)
 
-# for poster
-ggplot() +
-  geom_ribbon(data = bounds, aes(x = period, ymin = lower, ymax = upper), fill = "pink", alpha = 0.5, size = 1, linetype = "dashed") +
-  geom_vline(xintercept = 2024, alpha = 0.25, size = 1) +
-  geom_vline(xintercept = 2021.25, color = "red", alpha = 0.25, size = 1) +
-  geom_line(data = temp, aes(x = period, y = value, color = source, linetype = name), size = 1) +
-  theme_bw() +
-  ylab("Cumulative cVDPV2\nEmergences in AFR") +
-  scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2),
-                     labels = c("'16", "'18", "'20", "'22", "'24", "'26"),name = "") +
-  scale_linetype_discrete(name = "Emergences",
-                          labels = c("Observed", "Expected based\non Sabin 2 Rate")) +
-  # theme(legend.position = c(0.85, 0.3)) +
-  theme(text = element_text(size = 20)) +
-  # force_panelsizes(rows = unit(4, "in"),
-  #                  cols = unit(5, "in")) +
-  theme(legend.position = "none") +
-  scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
-ggsave("figures/Cumulative Emergences AFRO_poster.png", device = "png", units = "in", width = 4.5, height = 4)
-
 # Combined figure
 plot_layout(fig_cum_doses / fig_cum_emergences)
 ggsave("figures/Cumulative AFRO.png", device = "png", units = "in", width = 7, height = 10)
+
+
+
+#### Global crude analysis ####
+
 
 #### Sensitivity analysis: DRC Only ####
 polis_pops %>% filter(adm0_name == "DEMOCRATIC REPUBLIC OF THE CONGO") %>% group_by(source)%>% filter(start_date < today()) %>% summarize(sum = sum(target_pop))
