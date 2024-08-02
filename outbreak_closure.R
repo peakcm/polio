@@ -14,8 +14,7 @@ b<-virus[grepl(",",virus$vdpv_emergence_group),]
 b<-lapply(1:nrow(b),function(e){merge(b[e,which(names(b)!="vdpv_emergence_group")],cbind.data.frame(vdpv_emergence_group=strsplit(b$vdpv_emergence_group[e],", ")[[1]]))})
 b<-do.call("rbind",b)
 virus<-rbind(a,b)
-#data as of 9/11 missing "cVDPV2" in polio_virus_types for BOT-FRA-1
-virus[virus$vdpv_emergence_group == "BOT-FRA-1", "polio_virus_types"] <- "cVDPV2"
+unique(virus$vdpv_emergence_group) %>% sort()
 virus<-filter(virus,!iso3_code%in%c("AFG","PAK"),grepl("cVDPV2",polio_virus_types),vdpv_emergence_group!="cVDPV2")
 
 virus<-virus[order(virus$date),]

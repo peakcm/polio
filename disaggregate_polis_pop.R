@@ -79,3 +79,4 @@ sia_polis %>%
   ungroup() %>%
   group_by(admin0name, vaccine_type) %>%
   summarize(calculated_target_population = sum(calculated_target_population))
+

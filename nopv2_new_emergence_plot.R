@@ -1,6 +1,7 @@
 library(PolisAPI)
 library(lubridate)
 library(tidyverse)
+library(gganimate)
 # Vector of emergence groups linked to nOPV2
 n<-c("RDC-SKV-1", "RDC-TAN-2", "RDC-KOR-1",
       "CAF-KEM-1", "NIE-KBS-1", "RDC-HKA-2",
@@ -99,3 +100,7 @@ p<-ggplot()+geom_col(data=x,aes(x=half_year+365/4,y=n/1e6,fill=VaccineType=="nOP
   scale_y_continuous(sec.axis=sec_axis(trans=~./12,name="New emergences (date of detection)"))
 p
 ggsave("figures/nopv2_new_emergence_plot_alt.png",p,width=6,height=4)
+
+# Export data
+write.csv(x, "x.csv")
+write.csv(y, "y.csv")
