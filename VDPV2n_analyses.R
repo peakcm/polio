@@ -1722,7 +1722,7 @@ anim <- ggplot() +
   geom_line(data = temp, aes(x = period, y = value, color = source, linetype = name), size = 1) +
   geom_vline(xintercept = 2024.5, alpha = 0.25, size = 1) +
   geom_vline(xintercept = 2021.167, color = "red", alpha = 0.25, size = 1) + theme_bw() +
-  ylab("Cumulative cVDPV2 Emergence\nin Africa") +
+  ylab("Cumulative cVDPV2\nEmergence in Africa") +
   scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
   scale_linetype_discrete(name = "Emergences",
                           labels = c("Observed", "Expected based\non Sabin 2 Rate")) +
@@ -1732,7 +1732,6 @@ anim <- ggplot() +
   scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type") + 
   transition_reveal(period)
 anim_save("figures/Cumulative Emergences Africa.gif", anim)
-
 
 # Combined figure
 plot_layout(fig_cum_doses / fig_cum_emergences)
@@ -2161,7 +2160,7 @@ daily_U_conv_list_NIE %>%
   filter(source == c("nOPV2")) %>%
   filter(is.na(iteration) == T) %>% #to get the best fitted Theta values
   mutate(U_mOPV2_cumsum = cumsum(U_mOPV2)) %>%
-  filter(period == 2024.250) %>%
+  filter(period == 2024.50) %>%
   # filter(period == 2027.25) %>%
   summarize(mean = mean(U_mOPV2_cumsum))
 
@@ -2170,7 +2169,7 @@ daily_U_conv_list_NIE %>%
   filter(source == c("nOPV2")) %>%
   group_by(iteration) %>%
   mutate(U_mOPV2_cumsum = cumsum(U_mOPV2)) %>%
-  filter(period == 2024.250) %>%
+  filter(period == 2024.50) %>%
   # filter(period == 2027.25) %>%
   ungroup() %>%
   summarize(mean = mean(U_mOPV2_cumsum),
@@ -2206,7 +2205,7 @@ bounds_Sabin2_NIE <-
   summarize(lower = quantile(U_mOPV2_cumsum, 0.025),
             upper = quantile(U_mOPV2_cumsum, 0.975))
 
-bounds_Sabin2_NIE[bounds_Sabin2_NIE$period == 2024.250,]
+bounds_Sabin2_NIE[bounds_Sabin2_NIE$period == 2024.50,]
 tail(bounds_Sabin2_NIE)
 
 # Plot cumulative counts and expectation
@@ -2223,7 +2222,7 @@ viruses_count_period_NIE <- viruses_count_period_NIE %>%
 temp_NIE <- left_join(daily_U_conv_NIE, viruses_count_period_NIE, by = c("period", "source"))
 temp_NIE[is.na(temp_NIE$emergences), "emergences"] <- 0
 temp_NIE <- temp_NIE %>% ungroup() %>% group_by(source) %>% arrange(period) %>% mutate(emergences_cumsum = cumsum(emergences))
-temp_NIE[temp_NIE$period > 2024.333, c("emergences", "emergences_cumsum")] <- NA
+temp_NIE[temp_NIE$period > 2024.5, c("emergences", "emergences_cumsum")] <- NA
 temp_NIE <- temp_NIE %>% 
   select(c("period", "source", "U_mOPV2_cumsum", "emergences_cumsum")) %>%
   pivot_longer(cols = !c("period", "source"))
@@ -2277,7 +2276,7 @@ data_sia_NIE <- data %>%
           population_total_sum = sum(population_total),
           immunity_weighted = weighted.mean(immunity_u5, target_pop, na.rm=T),
           vaccinetype = unique(vaccinetype),
-          Region = unique(Region),
+          Region = unique(region),
           adm0_name = unique(adm0_name),
           source = unique(source),
           start_date = min(start_date),
@@ -2316,7 +2315,7 @@ ggsave(plot = sia_immunity_box_NIE, "figures/immunity_NIE.png", device = "png", 
 plot_layout(sia_target_box_NIE / sia_immunity_box_NIE)
 ggsave("figures/SIA target and immunity_NIE.png", device = "png", units = "in", width = 3, height = 6)
 
-# Compare timing of nOPV2 and Sabin2 SIAs. Hypothesis that variable NPEV prevalance may influence emergence risk
+# Compare timing of nOPV2 and Sabin2 SIAs. Hypothesis that variable NPEV prevalence may influence emergence risk
 polis_pops %>% 
   filter(adm0_name == "NIGERIA") %>%
   filter(start_date > "2016-05-01") %>%
@@ -2330,10 +2329,14 @@ polis_pops %>%
     scale_x_continuous(name = "Quarter")
 
 #### Triple boxplot ####
-plot_layout(ncol = 3, nrow = 2, sia_target_box + sia_immunity_box + 
-              sia_target_box_NIE + sia_immunity_box_NIE + 
-              sia_target_box_DRC + sia_immunity_box_DRC,
-            byrow = T)
+plot_layout(ncol = 3, nrow = 2, 
+              sia_target_box + scale_y_log10(limits = c(0.01,100), name = "SIA Target Population (Million)") + ggtitle("Africa") +
+              sia_target_box_NIE + scale_y_log10(limits = c(0.01,100), name = element_blank()) + ggtitle("Nigeria") +
+              sia_target_box_DRC + scale_y_log10(limits = c(0.01,100), name = element_blank()) + ggtitle("DRC") +
+              sia_immunity_box + scale_y_continuous(limits = c(0.0,1), name = "Pre-Campaign Type-2 Immunity") +
+              sia_immunity_box_NIE + scale_y_continuous(limits = c(0.0,1), name = element_blank()) +
+              sia_immunity_box_DRC + scale_y_continuous(limits = c(0.0,1), name = element_blank()),
+            byrow = F)
 ggsave("figures/SIA target and immunity_AFR NIE DRC.png", device = "png", units = "in", width = 6, height = 6)
 
 #### Sensitivity analysis: clusters of emergences ####
@@ -2350,13 +2353,13 @@ cluster_emergences <- c("ANG-HUI-1", "ANG-LNO-2", "ANG-LUA-1",
 
 viruses_count_period_cluster <- viruses %>% 
   filter(!(vdpv_emergence_group_name %in% cluster_emergences)) %>%
-  filter(region_who_code %in% c("AFRO")) %>%
+  filter(africa %in% c("Africa")) %>%
   filter(seeding_date > "2016-03-01") %>%
   group_by(period, source) %>% 
   summarize(emergences = sum(index_isolate==TRUE))
 viruses_count_period_cluster %>% ungroup() %>%
-  filter(source == "Sabin2") %>% summarize(sum = sum(emergences)) # 48 non cluster AFRO emergences
-sabin_emerge_cluster <- 49
+  filter(source == "Sabin2") %>% summarize(sum = sum(emergences)) # 52 non cluster Africa emergences
+sabin_emerge_cluster <- 52
 
 alpha_cluster <- 2.41e-06
 
@@ -2366,7 +2369,7 @@ daily_U_conv_cluster <- Func_wrapper(data_province,
                                  theta_u5_mean,
                                  sabin_emerge_input = sabin_emerge_cluster,
                                  end_date = end_date,
-                                 AFRO = T,
+                                 africa = T,
                                  fast_input = F)
 # Check new alpha versus old
 daily_U_conv_cluster$alpha[1] / alpha_cluster
@@ -2393,7 +2396,7 @@ viruses_count_period_cluster <- viruses_count_period_cluster %>%
 temp_cluster <- left_join(daily_U_conv_cluster, viruses_count_period_cluster, by = c("period", "source"))
 temp_cluster[is.na(temp_cluster$emergences), "emergences"] <- 0
 temp_cluster <- temp_cluster %>% ungroup() %>% group_by(source) %>% arrange(period) %>% mutate(emergences_cumsum = cumsum(emergences))
-temp_cluster[temp_cluster$period > 2024.25, c("emergences", "emergences_cumsum")] <- NA
+temp_cluster[temp_cluster$period > 2024.5, c("emergences", "emergences_cumsum")] <- NA
 temp_cluster <- temp_cluster %>% 
   select(c("period", "source", "U_mOPV2_cumsum", "emergences_cumsum")) %>%
   pivot_longer(cols = !c("period", "source"))
@@ -2405,7 +2408,7 @@ fig_cum_emergences_cluster <-
   geom_line(data = temp_cluster, aes(x = period, y = value, color = source, linetype = name), size = 1) +
   geom_vline(xintercept = 2024.5, alpha = 0.25, size = 1) +
   geom_vline(xintercept = 2021.167, color = "red", alpha = 0.25, size = 1) +theme_bw() +
-  ylab("Cumulative cVDPV2 Emergences in\nCollapsing Clusters") +
+  ylab("Cumulative cVDPV2 Emergences\nin Africa (Clusters Collapsed)") +
   scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
   scale_linetype_discrete(name = "Emergences",
                           labels = c("Observed", "Expected based\non Sabin 2 Rate")) +
@@ -2428,7 +2431,7 @@ for (i in 1:nrow(sample_thetas)){
                                         fast_input = F,
                                         sabin_emerge_input = sabin_emerge_cluster,
                                         crude = F,
-                                        AFRO = T,
+                                        africa = T,
                                         end_date = end_date)
   
   daily_U_conv_temp_cluster$iteration = i
@@ -2443,7 +2446,7 @@ daily_U_conv_list_cluster %>%
   filter(source == c("nOPV2")) %>%
   filter(is.na(iteration) == T) %>% #to get the best fitted Theta values
   mutate(U_mOPV2_cumsum = cumsum(U_mOPV2)) %>%
-  filter(period == 2024.250) %>%
+  filter(period == 2024.50) %>%
   # filter(period == 2027.25) %>%
   summarize(mean = mean(U_mOPV2_cumsum))
 
@@ -2452,7 +2455,7 @@ daily_U_conv_list_cluster %>%
   filter(source == c("nOPV2")) %>%
   group_by(iteration) %>%
   mutate(U_mOPV2_cumsum = cumsum(U_mOPV2)) %>%
-  filter(period == 2024.250) %>%
+  filter(period == 2024.50) %>%
   # filter(period == 2027.25) %>%
   ungroup() %>%
   summarize(mean = mean(U_mOPV2_cumsum),
@@ -2473,7 +2476,7 @@ bounds_nOPV2_cluster <-
   summarize(lower = quantile(U_mOPV2_cumsum, 0.025),
             upper = quantile(U_mOPV2_cumsum, 0.975))
 
-bounds_nOPV2_cluster[bounds_nOPV2_cluster$period == 2024.250,]
+bounds_nOPV2_cluster[bounds_nOPV2_cluster$period == 2024.50,]
 tail(bounds_nOPV2_cluster)
 
 # Create theta uncertainty bounds for Sabin2 expectation
@@ -2488,7 +2491,7 @@ bounds_Sabin2_cluster <-
   summarize(lower = quantile(U_mOPV2_cumsum, 0.025),
             upper = quantile(U_mOPV2_cumsum, 0.975))
 
-bounds_Sabin2_cluster[bounds_Sabin2_cluster$period == 2024.250,]
+bounds_Sabin2_cluster[bounds_Sabin2_cluster$period == 2024.50,]
 tail(bounds_Sabin2_cluster)
 
 # Plot cumulative counts and expectation
@@ -2505,7 +2508,7 @@ viruses_count_period_cluster <- viruses_count_period_cluster %>%
 temp_cluster <- left_join(daily_U_conv_cluster, viruses_count_period_cluster, by = c("period", "source"))
 temp_cluster[is.na(temp_cluster$emergences), "emergences"] <- 0
 temp_cluster <- temp_cluster %>% ungroup() %>% group_by(source) %>% arrange(period) %>% mutate(emergences_cumsum = cumsum(emergences))
-temp_cluster[temp_cluster$period > 2024.333, c("emergences", "emergences_cumsum")] <- NA
+temp_cluster[temp_cluster$period > 2024.5, c("emergences", "emergences_cumsum")] <- NA
 temp_cluster <- temp_cluster %>% 
   select(c("period", "source", "U_mOPV2_cumsum", "emergences_cumsum")) %>%
   pivot_longer(cols = !c("period", "source"))
@@ -2520,7 +2523,7 @@ fig_cum_emergences_cluster <-
   geom_line(data = temp_cluster, aes(x = period, y = value, color = source, linetype = name), size = 1) +
   geom_vline(xintercept = 2024.5, alpha = 0.25, size = 1) +
   geom_vline(xintercept = 2021.167, color = "red", alpha = 0.25, size = 1) + theme_bw() +
-  ylab("Cumulative cVDPV2\nEmergences in AFR") +
+  ylab("Cumulative cVDPV2 Emergences\nin Africa (Clusters Collapsed)") +
   scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
   scale_linetype_discrete(name = "Emergences",
                           labels = c("Observed", "Expected based\non Sabin 2 Rate")) +
@@ -2533,6 +2536,223 @@ ggsave(plot = fig_cum_emergences_cluster,"figures/Cumulative Emergences cluster.
 # Combined figure
 plot_layout(fig_cum_doses / fig_cum_emergences_cluster)
 ggsave("figures/Cumulative cluster.png", device = "png", units = "in", width = 7, height = 10)
+
+#### Sensitivity analysis: emergences with at least 2 AFP cases ####
+# Identify emergence groups with at least 2 AFP cases
+viruses$AFP_count <- 0
+viruses[viruses$surveillance_type_name == "AFP", "AFP_count"] <- 1
+viruses <- viruses %>%
+  group_by(vdpv_emergence_group_name) %>%
+  arrange(virus_date) %>%
+  mutate(AFP_cumsum = cumsum(AFP_count)) %>%
+  ungroup()
+
+emergence_groups_AFP2more <- unique(viruses[viruses$AFP_cumsum >= 2, "vdpv_emergence_group_name"]$vdpv_emergence_group_name)
+length(unique(viruses[viruses$AFP_cumsum >= 2, "vdpv_emergence_group_name"]$vdpv_emergence_group_name))
+length(unique(viruses[viruses$AFP_cumsum < 2, "vdpv_emergence_group_name"]$vdpv_emergence_group_name))
+
+viruses$AFP2more <- FALSE
+viruses[viruses$vdpv_emergence_group_name %in% emergence_groups_AFP2more, "AFP2more"] <- TRUE
+
+viruses %>%
+  filter(index_isolate == T) %>%
+  filter(seeding_date > "2016-05-01") %>%
+  filter(africa == "Africa") %>%
+  group_by(source, AFP2more, africa) %>%
+  summarise(n())
+# 44/59 (75%) post-switch sabin2 emergences have 2 or more AFP cases. 10/18 (56%) nOPV2. Caveat that nOPV2 emergences 'younger'
+
+cluster_emergences <- c("ANG-HUI-1", "ANG-LNO-2", "ANG-LUA-1",
+                        #"ANG_LNO-2", #keep one from each cluster
+                        #"CAF-BAM-1", #keep one from each cluster
+                        "CAF-BIM-3", "CAF-BAM-2", "CAF-BIM-2", "CAF-BIM-1")
+
+viruses_count_period_cluster <- viruses %>% 
+  filter(!(vdpv_emergence_group_name %in% cluster_emergences)) %>%
+  filter(africa %in% c("Africa")) %>%
+  filter(seeding_date > "2016-03-01") %>%
+  group_by(period, source) %>% 
+  summarize(emergences = sum(index_isolate==TRUE))
+viruses_count_period_cluster %>% ungroup() %>%
+  filter(source == "Sabin2") %>% summarize(sum = sum(emergences)) # 52 non cluster Africa emergences
+sabin_emerge_cluster <- 52
+
+alpha_cluster <- 2.41e-06
+
+daily_U_conv_cluster <- Func_wrapper(data_province,
+                                     alpha = alpha_cluster,
+                                     theta_size_mean,
+                                     theta_u5_mean,
+                                     sabin_emerge_input = sabin_emerge_cluster,
+                                     end_date = end_date,
+                                     africa = T,
+                                     fast_input = F)
+# Check new alpha versus old
+daily_U_conv_cluster$alpha[1] / alpha_cluster
+
+# Estimate nOPV2 by date
+daily_U_conv_cluster %>%
+  Func_cdf_by_date(end_date)
+
+# Estimate nOPV2 total
+daily_U_conv_cluster %>%
+  Func_cdf_by_date()
+
+# Plot cumulative counts and expectation
+daily_U_conv_cluster <- daily_U_conv_cluster %>%
+  ungroup() %>%  group_by(source) %>%
+  arrange(period) %>%
+  mutate(U_mOPV2_cumsum = cumsum(U_mOPV2)) 
+viruses_count_period_cluster <- viruses_count_period_cluster %>%
+  ungroup() %>% group_by(source) %>%
+  arrange(period) %>%
+  mutate(emergences_cumsum = cumsum(emergences))
+
+# Plot cumsum points and lines for U_d by period
+temp_cluster <- left_join(daily_U_conv_cluster, viruses_count_period_cluster, by = c("period", "source"))
+temp_cluster[is.na(temp_cluster$emergences), "emergences"] <- 0
+temp_cluster <- temp_cluster %>% ungroup() %>% group_by(source) %>% arrange(period) %>% mutate(emergences_cumsum = cumsum(emergences))
+temp_cluster[temp_cluster$period > 2024.5, c("emergences", "emergences_cumsum")] <- NA
+temp_cluster <- temp_cluster %>% 
+  select(c("period", "source", "U_mOPV2_cumsum", "emergences_cumsum")) %>%
+  pivot_longer(cols = !c("period", "source"))
+temp_cluster <- temp_cluster %>% filter(!(source %in%  c("Sabin2") & name %in% c("U_mOPV2_cumsum")))
+
+fig_cum_emergences_cluster <- 
+  ggplot() +
+  # geom_ribbon(data = bounds, aes(x = period, ymin = lower, ymax = upper), fill = "pink", size = 1, linetype = "dashed") +
+  geom_line(data = temp_cluster, aes(x = period, y = value, color = source, linetype = name), size = 1) +
+  geom_vline(xintercept = 2024.5, alpha = 0.25, size = 1) +
+  geom_vline(xintercept = 2021.167, color = "red", alpha = 0.25, size = 1) +theme_bw() +
+  ylab("Cumulative cVDPV2 Emergences\nin Africa (Clusters Collapsed)") +
+  scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
+  scale_linetype_discrete(name = "Emergences",
+                          labels = c("Observed", "Expected based\non Sabin 2 Rate")) +
+  # theme(legend.position = c(0.85, 0.3)) +
+  force_panelsizes(rows = unit(4, "in"),
+                   cols = unit(5, "in")) +
+  scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
+ggsave(plot = fig_cum_emergences_cluster,"figures/Cumulative Emergences cluster.png", device = "png", units = "in", width = 7, height = 5)
+
+# Repeat with uncertainty analysis
+daily_U_conv_list_cluster <- list(daily_U_conv_cluster)
+
+for (i in 1:nrow(sample_thetas)){
+  theta_size_input <- sample_thetas[i, 2]
+  theta_u5_input <- sample_thetas[i, 1]
+  daily_U_conv_temp_cluster <- Func_wrapper(data_province,
+                                            alpha_cluster,
+                                            theta_size_input,
+                                            theta_u5_input,
+                                            fast_input = F,
+                                            sabin_emerge_input = sabin_emerge_cluster,
+                                            crude = F,
+                                            africa = T,
+                                            end_date = end_date)
+  
+  daily_U_conv_temp_cluster$iteration = i
+  
+  daily_U_conv_list_cluster <- append(daily_U_conv_list_cluster, list(daily_U_conv_temp_cluster))
+  cat(i,"\n")
+}
+
+# Estimate nOPV2 by date
+daily_U_conv_list_cluster %>% 
+  bind_rows() %>%
+  filter(source == c("nOPV2")) %>%
+  filter(is.na(iteration) == T) %>% #to get the best fitted Theta values
+  mutate(U_mOPV2_cumsum = cumsum(U_mOPV2)) %>%
+  filter(period == 2024.50) %>%
+  # filter(period == 2027.25) %>%
+  summarize(mean = mean(U_mOPV2_cumsum))
+
+daily_U_conv_list_cluster %>% 
+  bind_rows() %>%
+  filter(source == c("nOPV2")) %>%
+  group_by(iteration) %>%
+  mutate(U_mOPV2_cumsum = cumsum(U_mOPV2)) %>%
+  filter(period == 2024.50) %>%
+  # filter(period == 2027.25) %>%
+  ungroup() %>%
+  summarize(mean = mean(U_mOPV2_cumsum),
+            median = median(U_mOPV2_cumsum),
+            mean = mean(U_mOPV2_cumsum),
+            upper = quantile(U_mOPV2_cumsum, 0.975),
+            lower = quantile(U_mOPV2_cumsum, 0.025))
+
+# Create theta uncertainty bounds for novel expectation
+bounds_nOPV2_cluster <-
+  daily_U_conv_list_cluster %>% 
+  bind_rows() %>%
+  filter(source == c("nOPV2")) %>%
+  group_by(iteration) %>%
+  mutate(U_mOPV2_cumsum = cumsum(U_mOPV2)) %>%
+  ungroup() %>%
+  group_by(period) %>%
+  summarize(lower = quantile(U_mOPV2_cumsum, 0.025),
+            upper = quantile(U_mOPV2_cumsum, 0.975))
+
+bounds_nOPV2_cluster[bounds_nOPV2_cluster$period == 2024.50,]
+tail(bounds_nOPV2_cluster)
+
+# Create theta uncertainty bounds for Sabin2 expectation
+bounds_Sabin2_cluster <-
+  daily_U_conv_list_cluster %>% 
+  bind_rows() %>%
+  filter(source == c("Sabin2")) %>%
+  group_by(iteration) %>%
+  mutate(U_mOPV2_cumsum = cumsum(U_mOPV2)) %>%
+  ungroup() %>%
+  group_by(period) %>%
+  summarize(lower = quantile(U_mOPV2_cumsum, 0.025),
+            upper = quantile(U_mOPV2_cumsum, 0.975))
+
+bounds_Sabin2_cluster[bounds_Sabin2_cluster$period == 2024.50,]
+tail(bounds_Sabin2_cluster)
+
+# Plot cumulative counts and expectation
+daily_U_conv_cluster <- daily_U_conv_cluster %>%
+  ungroup() %>%  group_by(source) %>%
+  arrange(period) %>%
+  mutate(U_mOPV2_cumsum = cumsum(U_mOPV2)) 
+viruses_count_period_cluster <- viruses_count_period_cluster %>%
+  ungroup() %>% group_by(source) %>%
+  arrange(period) %>%
+  mutate(emergences_cumsum = cumsum(emergences))
+
+# Plot cumsum points and lines for U_d by period
+temp_cluster <- left_join(daily_U_conv_cluster, viruses_count_period_cluster, by = c("period", "source"))
+temp_cluster[is.na(temp_cluster$emergences), "emergences"] <- 0
+temp_cluster <- temp_cluster %>% ungroup() %>% group_by(source) %>% arrange(period) %>% mutate(emergences_cumsum = cumsum(emergences))
+temp_cluster[temp_cluster$period > 2024.5, c("emergences", "emergences_cumsum")] <- NA
+temp_cluster <- temp_cluster %>% 
+  select(c("period", "source", "U_mOPV2_cumsum", "emergences_cumsum")) %>%
+  pivot_longer(cols = !c("period", "source"))
+temp_cluster <- temp_cluster %>% filter(!(source %in%  c("Sabin2") & name %in% c("U_mOPV2_cumsum")))
+
+# for paper
+fig_cum_emergences_cluster <- 
+  ggplot() +
+  # geom_ribbon(data = bounds_cluster, aes(x = period, ymin = lower, ymax = upper), fill = "pink", alpha = 0.5, size = 1, linetype = "dashed") +
+  geom_ribbon(data = bounds_nOPV2_cluster, aes(x = period, ymin = lower, ymax = upper), fill = "pink", alpha = 0.5, size = 1, linetype = "dashed") +
+  # geom_ribbon(data = bounds_Sabin2_cluster, aes(x = period, ymin = lower, ymax = upper), fill = "lightblue", alpha = 0.5, size = 1, linetype = "dashed") +
+  geom_line(data = temp_cluster, aes(x = period, y = value, color = source, linetype = name), size = 1) +
+  geom_vline(xintercept = 2024.5, alpha = 0.25, size = 1) +
+  geom_vline(xintercept = 2021.167, color = "red", alpha = 0.25, size = 1) + theme_bw() +
+  ylab("Cumulative cVDPV2 Emergences\nin Africa (Clusters Collapsed)") +
+  scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
+  scale_linetype_discrete(name = "Emergences",
+                          labels = c("Observed", "Expected based\non Sabin 2 Rate")) +
+  # theme(legend.position = c(0.85, 0.3)) +
+  force_panelsizes(rows = unit(4, "in"),
+                   cols = unit(5, "in")) +
+  scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
+ggsave(plot = fig_cum_emergences_cluster,"figures/Cumulative Emergences cluster.png", device = "png", units = "in", width = 7, height = 5)
+
+# Combined figure
+plot_layout(fig_cum_doses / fig_cum_emergences_cluster)
+ggsave("figures/Cumulative cluster.png", device = "png", units = "in", width = 7, height = 10)
+
 
 #### Apply time-to-linkage to any known aVDPV2-n's ####
 viruses %>% 
