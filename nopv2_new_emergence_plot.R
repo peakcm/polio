@@ -7,7 +7,8 @@ n<-c("RDC-SKV-1", "RDC-TAN-2", "RDC-KOR-1",
       "CAF-KEM-1", "NIE-KBS-1", "RDC-HKA-2",
       "CAF-BNG-3", "BOT-FRA-1", "EGY-NOR-1",
       "CAE-EXT-1", "ZIM-HRE-1", "NIE-KTS-1",
-      "MOZ-MAN-1", "RSS-WEQ-1") 
+      "MOZ-MAN-1", "RSS-WEQ-1", "ANG-LNO-3",
+      "ETH-TIG-1", "RSS-JON-1", "RDC-TSH-2" )
 
 
 set_token("C:/Users/coreype/OneDrive - Bill & Melinda Gates Foundation/Documents/GitHub/polio-immunity-mapping/data_local/token.txt")
@@ -92,7 +93,7 @@ p<-ggplot()+geom_col(data=x,aes(x=half_year+365/4,y=n/1e6,fill=VaccineType=="nOP
   geom_line(data=y,aes(x=half_year+365/4,y=12*y,color=vacc), linewidth = 2)+
   # geom_label(data=y,aes(x=half_year+365/4,y=12*(y+ifelse(half_year=="2023-01-01",ifelse(vacc=="nOPV2",-1,0.9),0.9)),label=y,color=vacc),size=2)+
   geom_label(data=y,aes(x=half_year+365/4,y=12*(y+0.9),label=y),color = "black", size=2)+
-  labs(x="",y="Estimated doses (millions)",linetype="",fill="Doses",color="Linked to",caption="*Data as of 12 Apr 2024.")+
+  labs(x="",y="Estimated doses (millions)",linetype="",fill="Doses",color="Linked to",caption="*Data as of 1 Aug 2024.")+
   theme(legend.position=c(0.1,0.68))+scale_x_date(date_breaks="year",date_labels="%b %y")+
   scale_fill_manual(labels=c("Sabin2", "nOPV2"),values=c("#00BFC4","#F8766D"))+
   scale_color_manual(values=c("#F8766D","#00BFC4"))+
@@ -100,6 +101,11 @@ p<-ggplot()+geom_col(data=x,aes(x=half_year+365/4,y=n/1e6,fill=VaccineType=="nOP
   scale_y_continuous(sec.axis=sec_axis(trans=~./12,name="New emergences (date of detection)"))
 p
 ggsave("figures/nopv2_new_emergence_plot_alt.png",p,width=6,height=4)
+
+# Note the most recent sabin emergences for context
+viruses_raw %>% filter(!(vdpv_emergence_group_name %in% n)) %>% 
+  group_by(vdpv_emergence_group_name) %>% 
+  summarize(earliest = min(virus_date)) %>% View()
 
 # Export data
 write.csv(x, "x.csv")
