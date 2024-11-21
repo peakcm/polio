@@ -13,6 +13,7 @@ library(ggh4x)
 library(ggbreak)
 library(gganimate)
 library(patchwork)
+library(scales)
 
 #### Load workspace ####
 load("VDPV2n_analyses.RData")
@@ -271,7 +272,7 @@ fig_cum_doses <-
     theme_bw() +
     scale_x_continuous(limits = c(2016.0, 2027), breaks = seq(2016, 2027, 2), name = "") +
     scale_y_continuous(name = "Cumulative Doses\nin Africa (Million)") +
-    scale_color_discrete(name = "Vaccine Type") +
+    scale_color_discrete(name = "Vaccine Type", labels = c("Sabin2" = "mOPV2 or\ntOPV")) +
     force_panelsizes(rows = unit(2, "in"),
                      cols = unit(5, "in"))
 ggsave(plot = fig_cum_doses, "figures/Cumulative Doses Africa.png", device = "png", units = "in", width = 7, height = 3)
@@ -295,13 +296,14 @@ anim <- polis_pops %>%
   theme_bw() +
   scale_x_continuous(limits = c(2016.0, 2027), breaks = seq(2016, 2027, 2), name = "") +
   scale_y_continuous(name = "Cumulative Doses\nin Africa (Million)") +
-  scale_color_discrete(name = "Vaccine Type") +
+  scale_color_discrete(name = "Vaccine Type", labels = c("Sabin2" = "mOPV2 or\ntOPV")) +
   # force_panelsizes(rows = unit(2, "in"),
   #                  cols = unit(5, "in")) +
   transition_reveal(period)
 anim_save("figures/Cumulative Doses Africa.gif", anim)
 
 # Plot quarterly number of doses (for paper)
+facet_labels <- c("nOPV2" = "nOPV2", "Sabin2" = "mOPV2 or tOPV")
 polis_pops %>%
   filter(!is.na(target_pop)) %>%
   ungroup() %>%
@@ -316,7 +318,7 @@ polis_pops %>%
   scale_x_continuous(limits = c(2016.0, 2024.5), breaks = seq(2016, 2024, 2), name = "") +
   scale_y_continuous(name = "Quarterly Doses\n(Million)") +
   scale_fill_discrete(name = "") +
-  facet_grid(source~.) 
+  facet_grid(source~., labeller = labeller(source = facet_labels)) 
 ggsave("figures/Quarterly Doses_Africa.png", device = "png", units = "in", width = 7, height = 3)
 
 #### POLIS Virus data ####
@@ -390,9 +392,9 @@ viruses %>%
   ggplot(aes(x = reorder(admin0name, -count), y = count, fill = source)) +
     theme_bw() + coord_flip() +
     geom_col(position = position_dodge2(width = 0.9, preserve = "single")) + 
-    scale_fill_discrete(name = "") +
+    scale_fill_discrete(name = "", labels = c("nOPV2" = "nOPV2", "Sabin2" = "mOPV2 or\ntOPV")) +
     facet_grid(africa~., scales = "free_y", space = "free") +
-    xlab("") + ylab("Post-Switch cVDPV2 Emergences")
+    xlab("") + ylab("Post-Switch cVDPV2 Emergences") + theme(legend.position = c(0.7, 0.9))
 ggsave("figures/emergences by country_africa.png", device = "png", units = "in", width = 4, height = 5)
 
 # Calculate period and quarter
@@ -956,9 +958,20 @@ seq_lag_fit_period <- seq_lag_fit %>%
 # seq_lag_fit_period %>% filter(admin0name == "DEMOCRATIC REPUBLIC OF THE CONGO") %>% View()
 # seq_lag_fit_period %>% filter(admin0name == "CENTRAL AFRICAN REPUBLIC") %>% View()
 
+# Quick edits to make titles fit in facet for CAR, DRC, Tanzania.
+seq_lag_fit_temp <- seq_lag_fit %>%
+  mutate(admin0name = str_replace_all(admin0name, "UNITED REPUBLIC OF TANZANIA", "TANZANIA")) %>%
+  mutate(admin0name = str_replace_all(admin0name, "DEMOCRATIC REPUBLIC OF THE CONGO", "DRC")) %>%
+  mutate(admin0name = str_replace_all(admin0name, "CENTRAL AFRICAN REPUBLIC", "CAR")) 
+
+seq_lag_fit_period_temp <- seq_lag_fit_period %>%
+  mutate(admin0name = str_replace_all(admin0name, "UNITED REPUBLIC OF TANZANIA", "TANZANIA")) %>%
+  mutate(admin0name = str_replace_all(admin0name, "DEMOCRATIC REPUBLIC OF THE CONGO", "DRC")) %>%
+  mutate(admin0name = str_replace_all(admin0name, "CENTRAL AFRICAN REPUBLIC", "CAR")) 
+
 ggplot() +
-  geom_line(aes(x=day,y=pseq),colour='black',linetype=2,data=seq_lag_fit %>% filter(region %in% c("AFRO"))) +
-  geom_point(aes(x=day,y=pseq_mean),colour='red',data=seq_lag_fit_period %>% filter(region %in% c("AFRO"))) +
+  geom_line(aes(x=day,y=pseq),colour='black',linetype=2,data=seq_lag_fit_temp %>% filter(region %in% c("AFRO"))) +
+  geom_point(aes(x=day,y=pseq_mean),colour='red',data=seq_lag_fit_period_temp %>% filter(region %in% c("AFRO"))) +
   facet_wrap(vars(admin0name))+
   theme(legend.position = 'none') +
   scale_y_continuous('Proportion of Sequences Available',breaks = c(0,0.5,1))+
@@ -1688,11 +1701,11 @@ fig_cum_emergences <-
     ylab("Cumulative cVDPV2\nEmergences in Africa") +
     scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
     scale_linetype_discrete(name = "Emergences",
-                            labels = c("Observed", "Expected based\non Sabin 2 Rate")) +
+                            labels = c("Observed", "Expected based\non mOPV2 Rate")) +
     # theme(legend.position = c(0.85, 0.3)) +
     force_panelsizes(rows = unit(4, "in"),
                      cols = unit(5, "in")) +
-    scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
+    scale_color_discrete(labels = c("nOPV2", "mOPV2 or\ntOPV"), name = "Vaccine Type")
 ggsave(plot = fig_cum_emergences,"figures/Cumulative Emergences Africa.png", device = "png", units = "in", width = 7, height = 5)
 
 anim <- ggplot() +
@@ -1705,11 +1718,11 @@ anim <- ggplot() +
   ylab("Cumulative cVDPV2\nEmergence in Africa") +
   scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
   scale_linetype_discrete(name = "Emergences",
-                          labels = c("Observed", "Expected based\non Sabin 2 Rate")) +
+                          labels = c("Observed", "Expected based\non mOPV2 Rate")) +
   # theme(legend.position = c(0.85, 0.3)) +
   # force_panelsizes(rows = unit(4, "in"),
   #                  cols = unit(5, "in")) +
-  scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type") + 
+  scale_color_discrete(labels = c("nOPV2", "mOPV2 or\ntOPV"), name = "Vaccine Type") + 
   transition_reveal(period)
 anim_save("figures/Cumulative Emergences Africa.gif", anim)
 
@@ -1903,18 +1916,18 @@ temp_DRC <- temp_DRC %>% filter(!(source %in%  c("Sabin2") & name %in% c("U_mOPV
 
 fig_cum_emergences_DRC <- 
   ggplot() +
-  # geom_ribbon(data = bounds, aes(x = period, ymin = lower, ymax = upper), fill = "pink", size = 1, linetype = "dashed") +
+  geom_ribbon(data = bounds, aes(x = period, ymin = lower, ymax = upper), fill = "pink", size = 1, linetype = "dashed") +
   geom_line(data = temp_DRC, aes(x = period, y = value, color = source, linetype = name), size = 1) +
   geom_vline(xintercept = 2024.5, alpha = 0.25, size = 1) +
   geom_vline(xintercept = 2021.167, color = "red", alpha = 0.25, size = 1) +theme_bw() +
   ylab("Cumulative cVDPV2\nEmergences in DRC") +
   scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
   scale_linetype_discrete(name = "Emergences",
-                          labels = c("Observed", "Expected based\non Sabin 2 Rate")) +
+                          labels = c("Observed", "Expected based\non mOPV2 Rate")) +
   # theme(legend.position = c(0.85, 0.3)) +
   force_panelsizes(rows = unit(4, "in"),
                    cols = unit(5, "in")) +
-  scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
+  scale_color_discrete(labels = c("nOPV2", "mOPV2"), name = "Vaccine Type")
 ggsave(plot = fig_cum_emergences_DRC,"figures/Cumulative Emergences DRC.png", device = "png", units = "in", width = 7, height = 5)
 
 fig_cum_doses_DRC <- 
@@ -1936,7 +1949,7 @@ fig_cum_doses_DRC <-
   theme_bw() +
   scale_x_continuous(limits = c(2016.0, 2027), breaks = seq(2016, 2027, 2), name = "") +
   scale_y_continuous(name = "Cumulative Doses in\nDRC (Million)") +
-  scale_color_discrete(name = "Vaccine Type") +
+  scale_color_discrete(name = "Vaccine Type", labels = c("Sabin2" = "mOPV2")) +
   force_panelsizes(rows = unit(2, "in"),
                    cols = unit(5, "in"))
 ggsave(plot = fig_cum_doses_DRC, "figures/Cumulative Doses DRC.png", device = "png", units = "in", width = 7, height = 3)
@@ -2052,11 +2065,11 @@ fig_cum_emergences_DRC <-
   ylab("Cumulative cVDPV2\nEmergences in DRC") +
   scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
   scale_linetype_discrete(name = "Emergences",
-                          labels = c("Observed", "Expected based\non Sabin 2 Rate")) +
+                          labels = c("Observed", "Expected based\non mOPV2 Rate")) +
   # theme(legend.position = c(0.85, 0.3)) +
   force_panelsizes(rows = unit(4, "in"),
                    cols = unit(5, "in")) +
-  scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
+  scale_color_discrete(labels = c("nOPV2", "mOPV2"), name = "Vaccine Type")
 ggsave(plot = fig_cum_emergences_DRC,"figures/Cumulative Emergences DRC.png", device = "png", units = "in", width = 7, height = 5)
 
 # Combined figure
@@ -2216,7 +2229,7 @@ fig_cum_doses_NIE <-
   theme_bw() +
   scale_x_continuous(limits = c(2016.0, 2027), breaks = seq(2016, 2027, 2), name = "") +
   scale_y_continuous(name = "Cumulative Doses in\nNigeria (Million)") +
-  scale_color_discrete(name = "Vaccine Type") +
+  scale_color_discrete(name = "Vaccine Type", labels = c("Sabin2" = "mOPV2")) +
   force_panelsizes(rows = unit(2, "in"),
                    cols = unit(5, "in"))
 ggsave(plot = fig_cum_doses_NIE, "figures/Cumulative Doses NIE.png", device = "png", units = "in", width = 7, height = 3)
@@ -2332,11 +2345,11 @@ fig_cum_emergences_NIE <-
   ylab("Cumulative cVDPV2\nEmergences in Nigeria") +
   scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
   scale_linetype_discrete(name = "Emergences",
-                          labels = c("Observed", "Expected based\non Sabin 2 Rate")) +
+                          labels = c("Observed", "Expected based\non mOPV2 Rate")) +
   # theme(legend.position = c(0.85, 0.3)) +
   force_panelsizes(rows = unit(4, "in"),
                    cols = unit(5, "in")) +
-  scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
+  scale_color_discrete(labels = c("nOPV2", "mOPV2"), name = "Vaccine Type")
 ggsave(plot = fig_cum_emergences_NIE,"figures/Cumulative Emergences NIE.png", device = "png", units = "in", width = 7, height = 5)
 
 # Combined figure
@@ -2421,13 +2434,14 @@ polis_pops %>%
     scale_x_continuous(name = "Quarter")
 
 #### Triple boxplot ####
+new_labels = c("nOPV2" = "nOPV2", "Sabin2" = "mOPV2")
 plot_layout(ncol = 3, nrow = 2, 
-              sia_target_box + scale_y_log10(limits = c(0.01,100), name = "SIA Target Population (Million)") + ggtitle("Africa") +
-              sia_target_box_NIE + scale_y_log10(limits = c(0.01,100), name = element_blank()) + ggtitle("Nigeria") +
-              sia_target_box_DRC + scale_y_log10(limits = c(0.01,100), name = element_blank()) + ggtitle("DRC") +
-              sia_immunity_box + scale_y_continuous(limits = c(0.0,1), name = "Pre-Campaign Type-2 Immunity") +
-              sia_immunity_box_NIE + scale_y_continuous(limits = c(0.0,1), name = element_blank()) +
-              sia_immunity_box_DRC + scale_y_continuous(limits = c(0.0,1), name = element_blank()),
+              sia_target_box + scale_y_log10(limits = c(0.01,100), name = "SIA Target Population (Million)", labels = scales::comma) + scale_x_discrete(name = element_blank(), labels = c("nOPV2" = "nOPV2", "Sabin2" = "mOPV2\nor\ntOPV")) + ggtitle("Africa") +
+              sia_target_box_NIE + scale_y_log10(limits = c(0.01,100), name = element_blank(), labels = scales::comma) + scale_x_discrete(name = element_blank(), labels = new_labels) + ggtitle("Nigeria") +
+              sia_target_box_DRC + scale_y_log10(limits = c(0.01,100), name = element_blank(), labels = scales::comma) + scale_x_discrete(name = element_blank(), labels = new_labels) + ggtitle("DRC") +
+              sia_immunity_box + scale_y_continuous(limits = c(0.0,1), name = "Pre-Campaign Type-2 Immunity") + scale_x_discrete(name = element_blank(), labels = c("nOPV2" = "nOPV2", "Sabin2" = "mOPV2\nor\ntOPV")) +
+              sia_immunity_box_NIE + scale_y_continuous(limits = c(0.0,1), name = element_blank()) + scale_x_discrete(name = element_blank(), labels = new_labels)  +
+              sia_immunity_box_DRC + scale_y_continuous(limits = c(0.0,1), name = element_blank()) + scale_x_discrete(name = element_blank(), labels = new_labels) ,
             byrow = F)
 ggsave("figures/SIA target and immunity_AFR NIE DRC.png", device = "png", units = "in", width = 6, height = 6)
 
@@ -2503,11 +2517,11 @@ fig_cum_emergences_cluster <-
   ylab("Cumulative cVDPV2 Emergences\nin Africa (Clusters Collapsed)") +
   scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
   scale_linetype_discrete(name = "Emergences",
-                          labels = c("Observed", "Expected based\non Sabin 2 Rate")) +
+                          labels = c("Observed", "Expected based\non mOPV2 Rate")) +
   # theme(legend.position = c(0.85, 0.3)) +
   force_panelsizes(rows = unit(4, "in"),
                    cols = unit(5, "in")) +
-  scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
+  scale_color_discrete(labels = c("nOPV2", "mOPV2 or\ntOPV"), name = "Vaccine Type")
 ggsave(plot = fig_cum_emergences_cluster,"figures/Cumulative Emergences cluster.png", device = "png", units = "in", width = 7, height = 5)
 
 # Repeat with uncertainty analysis
@@ -2618,11 +2632,11 @@ fig_cum_emergences_cluster <-
   ylab("Cumulative cVDPV2 Emergences\nin Africa (Clusters Collapsed)") +
   scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
   scale_linetype_discrete(name = "Emergences",
-                          labels = c("Observed", "Expected based\non Sabin 2 Rate")) +
+                          labels = c("Observed", "Expected based\non mOPV2 Rate")) +
   # theme(legend.position = c(0.85, 0.3)) +
   force_panelsizes(rows = unit(4, "in"),
                    cols = unit(5, "in")) +
-  scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
+  scale_color_discrete(labels = c("nOPV2", "mOPV2 or\ntOPV"), name = "Vaccine Type")
 ggsave(plot = fig_cum_emergences_cluster,"figures/Cumulative Emergences cluster.png", device = "png", units = "in", width = 7, height = 5)
 
 # Combined figure
@@ -2714,11 +2728,11 @@ fig_cum_emergences_AFP2more <-
   ylab("Cumulative cVDPV2 Emergences\nin Africa (>1 AFP Case)") +
   scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
   scale_linetype_discrete(name = "Emergences",
-                          labels = c("Observed", "Expected based\non Sabin 2 Rate")) +
+                          labels = c("Observed", "Expected based\non mOPV2 Rate")) +
   # theme(legend.position = c(0.85, 0.3)) +
   force_panelsizes(rows = unit(4, "in"),
                    cols = unit(5, "in")) +
-  scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
+  scale_color_discrete(labels = c("nOPV2", "mOPV2 or\ntOPV"), name = "Vaccine Type")
 ggsave(plot = fig_cum_emergences_AFP2more,"figures/Cumulative Emergences AFP2more.png", device = "png", units = "in", width = 7, height = 5)
 
 # Repeat with uncertainty analysis
@@ -2829,11 +2843,11 @@ fig_cum_emergences_AFP2more <-
   ylab("Cumulative cVDPV2 Emergences\nin Africa (>1 AFP Case)") +
   scale_x_continuous(limits = c(2016, 2027), breaks = seq(2016, 2027, 2), name = "") +
   scale_linetype_discrete(name = "Emergences",
-                          labels = c("Observed", "Expected based\non Sabin 2 Rate")) +
+                          labels = c("Observed", "Expected based\non mOPV2 Rate")) +
   # theme(legend.position = c(0.85, 0.3)) +
   force_panelsizes(rows = unit(4, "in"),
                    cols = unit(5, "in")) +
-  scale_color_discrete(labels = c("nOPV2", "Sabin2"), name = "Vaccine Type")
+  scale_color_discrete(labels = c("nOPV2", "mOPV2 or\ntOPV"), name = "Vaccine Type")
 ggsave(plot = fig_cum_emergences_AFP2more,"figures/Cumulative Emergences AFP2more.png", device = "png", units = "in", width = 7, height = 5)
 
 # Combined figure
@@ -3807,6 +3821,66 @@ sias_provinces %>% # Not working yet
             high = quantile(target_pop, .75))
 
 
+
+#### Boundary analysis ####
+# Look ahead in time to say how many emergences might be expected by Oct, Dec, and Feb
+daily_U_conv_list %>% 
+  bind_rows() %>%
+  filter(source == c("nOPV2")) %>%
+  group_by(iteration) %>%
+  mutate(U_mOPV2_cumsum = cumsum(U_mOPV2)) %>%
+  filter(period == 2024.50) %>%
+  # filter(period == 2024.750) %>%
+  # filter(period == 2024.917) %>%
+  # filter(period == 2025.167) %>%
+  ungroup() %>%
+  summarize(mean = mean(U_mOPV2_cumsum),
+            median = median(U_mOPV2_cumsum),
+            mean = mean(U_mOPV2_cumsum),
+            upper = quantile(U_mOPV2_cumsum, 0.975),
+            lower = quantile(U_mOPV2_cumsum, 0.025))
+
+# How does the % risk reduction look over time?
+daily_U_conv_list_long<-
+  daily_U_conv_list %>% 
+    bind_rows() %>%
+    filter(source == c("nOPV2")) %>%
+    group_by(iteration, period) %>%
+    mutate(U_mOPV2_cumsum = cumsum(U_mOPV2)) %>%
+    ungroup() %>%
+    group_by(period) %>%
+    summarize(mean = mean(U_mOPV2_cumsum),
+              median = median(U_mOPV2_cumsum),
+              mean = mean(U_mOPV2_cumsum),
+              upper = quantile(U_mOPV2_cumsum, 0.975),
+              lower = quantile(U_mOPV2_cumsum, 0.025)) 
+
+viruses_count_period_africa_join <- viruses_count_period_africa %>%
+  ungroup() %>%
+  filter(source %in% c("nOPV2"), africa %in% c("Africa")) %>%
+  select(period, emergences)
+
+daily_U_conv_list_long <- left_join(daily_U_conv_list_long, viruses_count_period_africa_join, by = c("period"))
+daily_U_conv_list_long[is.na(daily_U_conv_list_long$emergences),"emergences"] <- 0
+daily_U_conv_list_long$emergences_cumsum <- cumsum(daily_U_conv_list_long$emergences)
+daily_U_conv_list_long$median_cumsum <- cumsum(daily_U_conv_list_long$median)
+
+daily_U_conv_list_long<- daily_U_conv_list_long %>%
+  mutate(risk = emergences_cumsum / median_cumsum) %>%
+  filter(period >= 2021.25)
+
+daily_U_conv_list_long %>%
+  filter(period >= 2022.25) %>%
+  ggplot(aes(x = period)) +
+  theme_bw() +
+  # geom_vline(xintercept = 2021.25) +
+  geom_rect(xmin = 2021.25, xmax = 2022.25, ymin = 0, ymax = 50, fill = "grey") +
+  annotate("text", x = 2021.75, y = 0.1, label = "Unstable Estimates\nFirst Year of nOPV2", size = 3) +
+  geom_rect(xmin = 2024.75, xmax = 2025, ymin = 0, ymax = 50, fill = "skyblue") +
+  annotate("text", x = 2024.9, y = 0.1, label = "Future with\nzero doses or\nemergences", size = 3) +
+  geom_line(aes(y = risk)) +
+  scale_x_continuous(limits = c(2021.25, 2025)) +
+  scale_y_continuous(limits = c(0, .50), name = "Relative risk of nOPV2 vs mOPV2")
 
 #### Save workspace locally ####
 save.image(file = "VDPV2n_analyses.RData")
